@@ -1,0 +1,25 @@
+# Maven / Java
+target/
+*.class
+*.jar
+!**/src/**/*.jar
+
+# Dist / build output (la build si scarica dalle Release)
+dist/
+releases/
+*.zip
+!**/src/**/*.zip
+
+# Legacy privato locale (non va su GitHub)
+_legacy_private/
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+*.log
+.DS_Store
+Thumbs.db
