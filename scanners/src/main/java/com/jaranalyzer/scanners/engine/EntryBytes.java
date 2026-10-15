@@ -39,11 +39,22 @@ public final class EntryBytes {
     public static final class SkipLog {
         private int skipped;
         private final List<String> sample = new ArrayList<>();
+        /** Entry oversize di cui è stato analizzato il campione iniziale (Fase 2). */
+        private int sampled;
+        private final List<String> sampledNames = new ArrayList<>();
 
         public void skip(String entryName) {
             skipped++;
             if (sample.size() < MAX_SKIPPED_NAMES) {
                 sample.add(entryName);
+            }
+        }
+
+        /** Registra un'entry oversize coperta da analisi parziale del campione. */
+        public void sampled(String entryName) {
+            sampled++;
+            if (sampledNames.size() < MAX_SKIPPED_NAMES) {
+                sampledNames.add(entryName);
             }
         }
 
@@ -53,6 +64,38 @@ public final class EntryBytes {
 
         public int count() {
             return skipped;
+        }
+
+        public boolean hasSampled() {
+            return sampled > 0;
+        }
+
+        /** Finding LOW: esito parziale ma non cieco sulle voci campionate. */
+        public Finding toSampledFinding(String location, long sampleBytes) {
+            return toSampledFinding(location, sampleBytes, null);
+        }
+
+        /** Variante con nome analyzer, per distinguere le coperture parziali. */
+        public Finding toSampledFinding(String location, long sampleBytes, String analyzer) {
+            StringBuilder ev = new StringBuilder();
+            if (analyzer != null) {
+                ev.append("Analyzer: ").append(analyzer).append("\n");
+            }
+            ev.append("Voci oltre il limite analizzate solo sul campione iniziale di ")
+              .append(sampleBytes / 1024).append(" KB: ").append(sampled).append("\n");
+            for (String n : sampledNames) {
+                ev.append("- ").append(n).append("\n");
+            }
+            if (sampled > sampledNames.size()) {
+                ev.append("(+ altre ").append(sampled - sampledNames.size()).append(")");
+            }
+            return new Finding.Builder().title("Voci oversize campionate (" + sampled + ")")
+                    .ruleName("oversize-sampled")
+                    .description("Alcune voci superano il limite per singola entry: ne è stato "
+                            + "analizzato solo il campione iniziale. Un payload nascosto in coda "
+                            + "a queste voci non sarebbe rilevato.")
+                    .severity(Severity.LOW).category(Category.STRUCTURE).location(location)
+                    .evidence(ev.toString()).family("EntrySampledOversize").build();
         }
 
         /** Finding riepilogativo INFO (non sposta il risk score, ma è visibile). */
@@ -80,8 +123,7 @@ public final class EntryBytes {
      * @return contenuto, oppure {@code null} se oltre il cap (nome registrato in {@code skips})
      * @throws IOException solo per veri errori I/O (il chiamante li gestisce come prima)
      */
-    public static byte[] read(JarFile jar, JarEntry entry, long capBytes, SkipLog skips) throws IOException {
-        long declared = entry.getSize();
+    public static byte[] read(JarFile jar, JarEntry entry, long capBytes, SkipLog skips) throws IOException {        long declared = entry.getSize();
         if (declared > capBytes) {
             skips.skip(entry.getName());
             return null;
@@ -102,5 +144,47 @@ public final class EntryBytes {
             }
             return out.toByteArray();
         }
+    }
+
+    /**
+     * Legge al massimo {@code headBytes} iniziali di un'entry, SENZA registrarla
+     * come saltata (Fase 2: campionamento oversize). La registrazione spetta al
+     * chiamante via {@link SkipLog#sampled(String)} dopo averlo analizzato.
+     *
+     * @return prefisso (mai null se la lettura riesce; vuoto se entry vuota)
+     */
+    public static byte[] readHead(JarFile jar, JarEntry entry, long headBytes) throws IOException {
+        try (InputStream in = jar.getInputStream(entry)) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream((int) Math.min(headBytes, 1 << 20));
+            byte[] buf = new byte[8192];
+            long total = 0;
+            int n;
+            while (total < headBytes && (n = in.read(buf, 0, (int) Math.min(buf.length, headBytes - total))) != -1) {
+                out.write(buf, 0, n);
+                total += n;
+            }
+            return out.toByteArray();
+        }
+    }
+
+    /**
+     * Legge uno stream sequenziale (es. entry di {@code JarInputStream} annidato)
+     * fino a {@code capBytes} effettivi.
+     *
+     * @return contenuto, oppure {@code null} se oltre il cap
+     */
+    public static byte[] readCappedStream(InputStream in, long capBytes) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream(1 << 16);
+        byte[] buf = new byte[8192];
+        long total = 0;
+        int n;
+        while ((n = in.read(buf)) != -1) {
+            total += n;
+            if (total > capBytes) {
+                return null;
+            }
+            out.write(buf, 0, n);
+        }
+        return out.toByteArray();
     }
 }

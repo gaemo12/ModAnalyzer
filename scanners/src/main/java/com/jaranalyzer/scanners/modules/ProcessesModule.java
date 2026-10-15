@@ -89,7 +89,7 @@ public final class ProcessesModule implements ScanModule {
             }
         }
         progress.report(id(), "done", 100);
-        Map<String, Long> counters = new HashMap<>();
+        Map<String, Long> counters = new java.util.LinkedHashMap<>(); // ordine stabile nel JSON (determinismo)
         counters.put("processes", (long) all.size());
         counters.put("java", javaCount);
         counters.put("minecraftLike", mcCount);

@@ -19,6 +19,7 @@ import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.jar.JarEntry;
@@ -31,6 +32,8 @@ implements JarAnalyzer {
     private static final Logger log = LoggerFactory.getLogger(CheatSignatureAnalyzer.class);
     private static final int MIN_MATCH_THRESHOLD = 5;
     private static final long MAX_ENTRY_SIZE = 0x1400000L;
+    /** Campione iniziale per le entry oltre il cap (Fase 2). */
+    private static final long SAMPLE_HEAD_BYTES = 1L * 1024 * 1024;
     private static final int MAX_SAMPLE_STRINGS = 15;
     private final SignatureSet signatures;
 
@@ -60,7 +63,21 @@ implements JarAnalyzer {
             Enumeration<JarEntry> enumeration = jar.entries();
             while (enumeration.hasMoreElements()) {
                 JarEntry entry = enumeration.nextElement();
-                if (entry.isDirectory() || entry.getSize() <= 0L || entry.getSize() > 0x1400000L) continue;
+                if (entry.isDirectory() || entry.getSize() <= 0L) continue;
+                if (entry.getSize() > 0x1400000L) {
+                    // Oversize: campione iniziale invece di punto cieco (Fase 2).
+                    try {
+                        byte[] head = EntryBytes.readHead(jar, entry, SAMPLE_HEAD_BYTES);
+                        if (head != null && head.length > 0) {
+                            skips.sampled(entry.getName());
+                            this.scanEntryAgainstDatabase(new String(head, StandardCharsets.ISO_8859_1),
+                                    database, matchesByCheat);
+                        }
+                    } catch (Exception e) {
+                        log.debug("Could not sample entry {}: {}", (Object)entry.getName(), (Object)e.getMessage());
+                    }
+                    continue;
+                }
                 String content = this.readEntryAsLatin1(jar, entry, skips);
                 if (content == null) continue;
                 this.scanEntryAgainstDatabase(content, database, matchesByCheat);
@@ -81,17 +98,27 @@ implements JarAnalyzer {
         if (!skips.isEmpty()) {
             findings.add(skips.toFinding(jarFile.getName(), 0x1400000L));
         }
+        if (skips.hasSampled()) {
+            findings.add(skips.toSampledFinding(jarFile.getName(), SAMPLE_HEAD_BYTES, "CheatSignatureAnalyzer"));
+        }
         log.info("Cheat-signature analysis complete \u2013 {} finding(s)", (Object)findings.size());
         return findings;
     }
 
     private void scanEntryAgainstDatabase(String content, Map<String, List<String>> database, Map<String, Set<String>> matchesByCheat) {
+        // Vista normalizzata per l'anti-evasione case-insensitive (Fase 1).
+        String lower = content.toLowerCase(Locale.ROOT);
         for (Map.Entry<String, List<String>> cheatEntry : database.entrySet()) {
             String cheatName = cheatEntry.getKey();
             Set<String> alreadyFound = matchesByCheat.get(cheatName);
             for (String signature : cheatEntry.getValue()) {
-                if (alreadyFound.contains(signature) || !content.contains(signature)) continue;
-                alreadyFound.add(signature);
+                if (alreadyFound.contains(signature)) {
+                    continue;
+                }
+                if (content.contains(signature)
+                        || lower.contains(signature.toLowerCase(Locale.ROOT))) {
+                    alreadyFound.add(signature);
+                }
             }
         }
     }

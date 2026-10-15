@@ -78,7 +78,7 @@ public final class HostsFileModule implements ScanModule {
                     sev, Category.SYSTEM, hosts.toString(), t + " — " + reason));
         }
         progress.report(id(), "done", 100);
-        Map<String, Long> counters = new HashMap<>();
+        Map<String, Long> counters = new java.util.LinkedHashMap<>(); // ordine stabile nel JSON (determinismo)
         counters.put("entries", entries);
         return new ModuleResult(id(), true, System.currentTimeMillis() - start,
                 FindingMapper.toProtocol(findings), counters, null);

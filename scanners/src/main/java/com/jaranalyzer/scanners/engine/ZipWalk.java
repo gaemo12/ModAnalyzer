@@ -3,9 +3,7 @@ package com.jaranalyzer.scanners.engine;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.Enumeration;
-import java.util.List;
 import java.util.function.Predicate;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -43,31 +41,25 @@ public final class ZipWalk {
     }
 
     public static void walk(ZipFile zip, Visitor visitor, Predicate<ZipEntry> filter) throws IOException {
+        // Passata singola (Fase 6): niente snapshot nomi + getEntry (TOCTOU), il
+        // conteggio scatta solo sulle entry visitate. Directory sempre ignorate.
         Enumeration<? extends ZipEntry> entries = zip.entries();
         long count = 0;
         long total = 0;
-        List<String> names = new ArrayList<>();
         while (entries.hasMoreElements()) {
             ZipEntry e = entries.nextElement();
             if (e.isDirectory()) {
                 continue;
             }
-            if (++count > MAX_ENTRIES) {
-                throw new IOException("limite entry superato (" + MAX_ENTRIES + "): archivio anomalo");
-            }
             if (!filter.test(e)) {
                 continue;
             }
-            names.add(e.getName());
-        }
-        for (String name : names) {
-            ZipEntry e = zip.getEntry(name);
-            if (e == null || e.isDirectory()) {
-                continue;
+            if (++count > MAX_ENTRIES) {
+                throw new IOException("limite entry superato (" + MAX_ENTRIES + "): archivio anomalo");
             }
             long size = e.getSize();
             if (size < 0 || size > MAX_ENTRY_BYTES) {
-                visitor.visit(new Entry(name, size, null, true));
+                visitor.visit(new Entry(e.getName(), size, null, true));
                 continue;
             }
             if (total + size > MAX_TOTAL_BYTES) {
@@ -78,7 +70,7 @@ public final class ZipWalk {
                 content = readCapped(in, size);
             }
             total += content.length;
-            visitor.visit(new Entry(name, size, content, false));
+            visitor.visit(new Entry(e.getName(), size, content, false));
         }
     }
 

@@ -83,7 +83,7 @@ public final class AutorunsModule implements ScanModule {
                         : host.systemRoot().resolve("ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\StartUp"),
                 "Startup (tutti)", host, progress);
         progress.report(id(), "done", 100);
-        Map<String, Long> counters = new HashMap<>();
+        Map<String, Long> counters = new java.util.LinkedHashMap<>(); // ordine stabile nel JSON (determinismo)
         counters.put("autoruns", total);
         counters.put("findings", (long) findings.size());
         return new ModuleResult(id(), true, System.currentTimeMillis() - start,

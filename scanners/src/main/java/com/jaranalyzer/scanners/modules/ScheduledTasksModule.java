@@ -78,7 +78,7 @@ public final class ScheduledTasksModule implements ScanModule {
                     sev, Category.SYSTEM, r.taskName, run + " — " + reason));
         }
         progress.report(id(), "done", 100);
-        Map<String, Long> counters = new HashMap<>();
+        Map<String, Long> counters = new java.util.LinkedHashMap<>(); // ordine stabile nel JSON (determinismo)
         counters.put("tasks", (long) rows.size());
         counters.put("tasksFindings", suspicious);
         return new ModuleResult(id(), true, System.currentTimeMillis() - start,

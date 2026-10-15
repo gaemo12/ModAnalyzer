@@ -90,7 +90,7 @@ public final class ServicesModule implements ScanModule {
             }
         }
         progress.report(id(), "done", 100);
-        Map<String, Long> counters = new HashMap<>();
+        Map<String, Long> counters = new java.util.LinkedHashMap<>(); // ordine stabile nel JSON (determinismo)
         counters.put("services", services);
         counters.put("findings", (long) findings.size());
         return new ModuleResult(id(), true, System.currentTimeMillis() - start,

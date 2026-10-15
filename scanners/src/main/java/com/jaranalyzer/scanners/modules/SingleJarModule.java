@@ -107,7 +107,7 @@ public final class SingleJarModule implements ScanModule {
         findings.addAll(modInfo(jar, fileName));
         checkCancelled(progress);
         progress.report(id(), "done", 100);
-        Map<String, Long> counters = new HashMap<>();
+        Map<String, Long> counters = new java.util.LinkedHashMap<>(); // ordine stabile nel JSON (determinismo)
         counters.put("files", 1L);
         counters.put("classes", stats.classes);
         counters.put("entries", stats.entries);

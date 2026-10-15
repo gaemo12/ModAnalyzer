@@ -18,8 +18,9 @@ import org.slf4j.LoggerFactory;
  * I dati vivono nel modulo {@code scanner-data-staff} (resources
  * {@code signatures/*.txt} + {@code reputation/*.txt}), dipendenza ESCLUSIVA
  * di app-staff e test: MAI nel Player (che riceve il set via JS1 e lo tiene
- * in memoria). Caricamento rigido: file mancanti o malformati lanciano
- * eccezione, mai set parziali silenziosi.
+ * in memoria). Caricamento tollerante (Fase 6): righe malformate scartate con
+ * warn e conteggio, mai set parziali silenziosi; solo un file senza nessuna
+ * riga valida (o mancante) lancia eccezione.
  */
 public final class BuiltinSignatures {
     private static final Logger log = LoggerFactory.getLogger(BuiltinSignatures.class);
@@ -77,6 +78,9 @@ public final class BuiltinSignatures {
     static List<String[]> rows(ClassLoader loader, String resource, int cols) {
         List<String> lines = readLines(loader, resource);
         List<String[]> out = new ArrayList<>();
+        // Tolleranza (Fase 6): una riga corrotta non invalida più l'intero set;
+        // viene scartata con warn. Solo un file senza NESSUNA riga valida resta fatale.
+        int dropped = 0;
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.get(i);
             if (line.isEmpty()) {
@@ -84,13 +88,18 @@ public final class BuiltinSignatures {
             }
             String[] cols2 = line.split("\t", -1);
             if (cols2.length != cols) {
-                throw new IllegalStateException(
-                        resource + ":" + (i + 1) + ": attese " + cols + " colonne, trovate " + cols2.length);
+                dropped++;
+                log.warn("{}:{}: riga scartata (attese {} colonne, trovate {})",
+                        resource, (i + 1), cols, cols2.length);
+                continue;
             }
             out.add(cols2);
         }
+        if (dropped > 0) {
+            log.warn("Righe malformate scartate da {}: {}", resource, dropped);
+        }
         if (out.isEmpty()) {
-            throw new IllegalStateException(resource + ": nessun dato");
+            throw new IllegalStateException(resource + ": nessun dato valido");
         }
         return out;
     }
@@ -99,6 +108,8 @@ public final class BuiltinSignatures {
     static Map<String, String> reputation(ClassLoader loader, String resource) {
         Map<String, String> out = new LinkedHashMap<>();
         List<String> lines = readLines(loader, resource);
+        // Tolleranza (Fase 6): hash malformati scartati con warn, come per rows().
+        int dropped = 0;
         for (String raw : lines) {
             String line = raw.trim();
             if (line.isEmpty() || line.startsWith("#")) {
@@ -108,9 +119,14 @@ public final class BuiltinSignatures {
             String hash = (sep > 0 ? line.substring(0, sep) : line).trim().toLowerCase(Locale.ROOT);
             String label = sep > 0 ? line.substring(sep + 1).trim() : "";
             if (hash.length() != 64) {
-                throw new IllegalStateException(resource + ": hash non valido: " + line);
+                dropped++;
+                log.warn("{}: hash scartato: {}", resource, line.length() > 72 ? line.substring(0, 72) + "..." : line);
+                continue;
             }
             out.put(hash, label);
+        }
+        if (dropped > 0) {
+            log.warn("Hash malformati scartati da {}: {}", resource, dropped);
         }
         return out;
     }

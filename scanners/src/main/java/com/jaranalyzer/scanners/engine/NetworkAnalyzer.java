@@ -52,6 +52,8 @@ implements JarAnalyzer {
     private static final Set<String> DNS_OWNERS = Set.of("java/net/InetAddress", "java/net/InetSocketAddress", "java/net/Inet4Address", "java/net/Inet6Address");
     private static final Set<String> DNS_METHODS = Set.of("getByName", "getAllByName", "getByAddress", "getLocalHost");
     private static final String URL_CLASSLOADER = "java/net/URLClassLoader";
+    /** Campione iniziale per le entry oltre il cap (Fase 2). */
+    private static final long SAMPLE_HEAD_BYTES = 1L * 1024 * 1024;
 
     @Override
     public String getName() {
@@ -84,7 +86,11 @@ implements JarAnalyzer {
                 if (entry.isDirectory()) continue;
                 try {
                     bytes = EntryBytes.read(jar, entry, EntryBytes.DEFAULT_MAX_ENTRY_BYTES, skips);
-                    if (bytes == null) continue;
+                    if (bytes == null) {
+                        // Oltre il cap: campione iniziale invece di punto cieco (Fase 2).
+                        this.scanSample(jar, entry, hardcodedIPs, suspiciousURLs, suspiciousDomains, suspiciousPorts, skips);
+                        continue;
+                    }
                 }
                 catch (Exception e) {
                     continue;
@@ -102,6 +108,8 @@ implements JarAnalyzer {
 
                         public MethodVisitor visitMethod(int access, final String mName, String desc, String sig, String[] exc) {
                             return new MethodVisitor(589824){
+                                /** LDC precedente del metodo per ricomporre gli split (Fase 1). */
+                                private final String[] prev = new String[1];
 
                                 public void visitMethodInsn(int opc, String owner, String name, String d, boolean itf) {
                                     String loc;
@@ -138,6 +146,24 @@ implements JarAnalyzer {
                                     if (value instanceof String) {
                                         String s = (String)value;
                                         NetworkAnalyzer.this.scanStringForNetworkIndicators(s, entryName, hardcodedIPs, suspiciousURLs, suspiciousDomains, suspiciousPorts);
+                                        // Stringhe offuscate: decodifica prudente e ri-scansione (Fase 1).
+                                        String b64 = StringNorm.tryBase64(s);
+                                        if (b64 != null) {
+                                            NetworkAnalyzer.this.scanStringForNetworkIndicators(b64, entryName + " [base64]", hardcodedIPs, suspiciousURLs, suspiciousDomains, suspiciousPorts);
+                                        } else {
+                                            String hex = StringNorm.tryHex(s);
+                                            if (hex != null) {
+                                                NetworkAnalyzer.this.scanStringForNetworkIndicators(hex, entryName + " [hex]", hardcodedIPs, suspiciousURLs, suspiciousDomains, suspiciousPorts);
+                                            }
+                                        }
+                                        // Split su LDC adiacenti ("ht"+"tp://..."): ricompone a coppie (Fase 1).
+                                        if (prev[0] != null) {
+                                            String joined = prev[0] + s;
+                                            if (joined.length() <= 4096) {
+                                                NetworkAnalyzer.this.scanStringForNetworkIndicators(joined, entryName + " [concat]", hardcodedIPs, suspiciousURLs, suspiciousDomains, suspiciousPorts);
+                                            }
+                                        }
+                                        prev[0] = s.length() > 2048 ? s.substring(0, 2048) : s;
                                     }
                                     super.visitLdcInsn(value);
                                 }
@@ -146,7 +172,11 @@ implements JarAnalyzer {
                     }, 4);
                     continue;
                 }
-                if (bytes.length > 0x500000) continue;
+                if (bytes.length > 0x500000) {
+                    // Testo oltre 5 MB: campione iniziale invece di salto cieco (Fase 2).
+                    this.scanSample(jar, entry, hardcodedIPs, suspiciousURLs, suspiciousDomains, suspiciousPorts, skips);
+                    continue;
+                }
                 try {
                     text = new String(bytes, StandardCharsets.UTF_8);
                 }
@@ -156,8 +186,7 @@ implements JarAnalyzer {
                 if (!this.isMostlyText(text)) continue;
                 this.scanStringForNetworkIndicators(text, entryName, hardcodedIPs, suspiciousURLs, suspiciousDomains, suspiciousPorts);
             }
-        }
-        if (!hardcodedIPs.isEmpty()) {
+        }        if (!hardcodedIPs.isEmpty()) {
             findings.add(new Finding.Builder().title("IP hardcodati rilevati (" + hardcodedIPs.size() + ")").description("Il JAR contiene indirizzi IP pubblici hardcodati. Nei malware, questi IP sono spesso server C2 (Command & Control) per ricevere comandi o esfiltrare dati.").severity(Severity.HIGH).category(Category.NETWORK).location("Multipli file").evidence("IP trovati:\n" + String.join((CharSequence)"\n", hardcodedIPs.subList(0, Math.min(15, hardcodedIPs.size())))).family("HardcodedIP").recommendation("Verifica ogni IP su servizi di threat intelligence (VirusTotal, Shodan, AbuseIPDB).").build());
         }
         if (!suspiciousURLs.isEmpty()) {
@@ -187,8 +216,27 @@ implements JarAnalyzer {
         if (!skips.isEmpty()) {
             findings.add(skips.toFinding(jarFile.getName(), EntryBytes.DEFAULT_MAX_ENTRY_BYTES));
         }
+        if (skips.hasSampled()) {
+            findings.add(skips.toSampledFinding(jarFile.getName(), SAMPLE_HEAD_BYTES, "NetworkAnalyzer"));
+        }
         log.info("Network analysis complete \u2013 {} finding(s)", (Object)findings.size());
         return findings;
+    }
+
+    /** Campione iniziale di un'entry oltre il cap, scansionato come testo (Fase 2). */
+    private void scanSample(JarFile jar, JarEntry entry, List<String> ips, List<String> urls,
+            List<String> domains, List<String> ports, EntryBytes.SkipLog skips) {
+        try {
+            byte[] head = EntryBytes.readHead(jar, entry, SAMPLE_HEAD_BYTES);
+            if (head == null || head.length == 0) {
+                return;
+            }
+            skips.sampled(entry.getName());
+            String text = new String(head, StandardCharsets.UTF_8);
+            this.scanStringForNetworkIndicators(text, entry.getName() + " [campione]", ips, urls, domains, ports);
+        } catch (Exception e) {
+            log.debug("Network sample fallito per {}: {}", (Object)entry.getName(), (Object)e.getMessage());
+        }
     }
 
     private void scanStringForNetworkIndicators(String s, String location, List<String> ips, List<String> urls, List<String> domains, List<String> ports) {

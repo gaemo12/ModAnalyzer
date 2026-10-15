@@ -122,7 +122,7 @@ public final class InstalledSoftwareModule implements ScanModule {
             progress.report(id(), "sentries", 60 + (k++) * 15);
         }
         progress.report(id(), "done", 100);
-        Map<String, Long> counters = new HashMap<>();
+        Map<String, Long> counters = new java.util.LinkedHashMap<>(); // ordine stabile nel JSON (determinismo)
         counters.put("programs", programs);
         counters.put("findings", (long) findings.size());
         return new ModuleResult(id(), true, System.currentTimeMillis() - start,

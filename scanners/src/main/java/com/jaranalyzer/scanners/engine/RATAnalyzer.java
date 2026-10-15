@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.regex.Pattern;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.MethodVisitor;
@@ -49,6 +50,11 @@ implements JarAnalyzer {
     private static final Set<String> TEMP_FILE_OWNERS = Set.of("java/io/File", "java/io/FileOutputStream", "java/io/FileWriter", "java/nio/file/Files");
     private static final Set<String> TEMP_FILE_PATTERNS = Set.of("C:\\Users\\", "%TEMP%", "%APPDATA%", "\\AppData\\Local\\Temp", ".exe", ".vbs", ".bat", ".ps1", ".dll");
     private static final Set<String> RAT_STRINGS = Set.of("keylogger", "KeyLogger", "KEYLOGGER", "ScreenCapture", "screencapture", "screenshot", "webcam", "Webcam", "WEBCAM", "microphone", "Microphone", "audioCapture", "clipboard", "Clipboard", "CLIPBOARD", "reverseShell", "ReverseShell", "backconnect", "bindShell", "BindShell", "cmd.exe", "powershell", "/bin/sh", "/bin/bash", "C2 ", "commandQueue", "executeCommand", "remoteDesktop", "RemoteDesktop", "fileManager", "FileManager", "processManager", "ProcessManager");
+    /**
+     * Anti-FP: "cmd.exe" è sottostringa di "jcmd.exe" (tool JDK legittimo usato
+     * anche da ModScanOpen). I token shell corti richiedono boundary a sinistra.
+     */
+    private static final Pattern CMD_EXE = Pattern.compile("(?<![A-Za-z0-9_])cmd\\.exe", Pattern.CASE_INSENSITIVE);
 
     @Override
     public String getName() {
@@ -173,12 +179,14 @@ implements JarAnalyzer {
                                     String lower = s.toLowerCase(Locale.ROOT);
                                     for (String ratStr : RAT_STRINGS) {
                                         if (!s.equals(ratStr) && (ratStr.length() <= 3 || !lower.contains(ratStr.toLowerCase(Locale.ROOT)))) continue;
+                                        // Anti-FP jcmd.exe (vedi CMD_EXE): salta il match spurio.
+                                        if ("cmd.exe".equalsIgnoreCase(ratStr) && !CMD_EXE.matcher(s).find()) continue;
                                         this.hasRatString = true;
                                         if (ratStringLocs.size() >= 10) break;
                                         ratStringLocs.add(classRef + "::" + mName + " -> \"" + s.substring(0, Math.min(40, s.length())) + "\"");
                                         break;
                                     }
-                                    if (lower.contains("cmd.exe") || lower.contains("powershell") || lower.contains("/bin/sh") || lower.contains("/bin/bash")) {
+                                    if (CMD_EXE.matcher(s).find() || lower.contains("powershell") || lower.contains("/bin/sh") || lower.contains("/bin/bash")) {
                                         this.hasShellProcess = true;
                                     }
                                     if (lower.contains("%temp%") || lower.contains("%appdata%") || lower.contains("\\appdata\\local\\temp")) {

@@ -257,6 +257,13 @@ implements JarAnalyzer {
         if (s.length() < 8) {
             return false;
         }
+        // Anti-FP (come BytecodeAnalyzer.looksLikeCryptoKey): niente spazi/controlli/backslash.
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (Character.isWhitespace(c) || Character.isISOControl(c) || c == '\\') {
+                return false;
+            }
+        }
         boolean hasUpper = false;
         boolean hasLower = false;
         boolean hasDigit = false;

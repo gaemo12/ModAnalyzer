@@ -97,10 +97,9 @@ public class BytecodeAnalyzer {
         boolean isSuper = (access & 0x20) != 0;
         boolean isSynthetic = (access & 0x1000) != 0;
         boolean isEnum = (access & 0x4000) != 0;
-        int accessModifier = access & 7;
-        if (accessModifier == 0 && !isEnum && !isInterface) {
-            anomalies.add("Classe package-private (no public/private/protected) \u2014 visibilit\u00e0 ristretta anomala");
-        }
+        // Nota (anti-FP): la visibilità package-private NON è un'anomalia — metà
+        // delle classi legittime (helper, record, nested) ce l'ha. Segnalarla
+        // inondava di MEDIUM qualsiasi JAR normale. Restano le contraddizioni vere.
         if (isFinal && isAbstract) {
             anomalies.add("ACC_FINAL + ACC_ABSTRACT insieme \u2014 access flag contraddittorie (possibile offuscamento)");
         }
@@ -127,6 +126,24 @@ public class BytecodeAnalyzer {
         if (s.length() != 16 && s.length() != 24 && s.length() != 32) {
             return false;
         }
+        // Anti-FP: le chiavi reali non contengono spazi/controlli. Il backslash
+        // esclude anche le regex ("\\s*", "\\\"") scambiate per chiavi.
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (Character.isWhitespace(c) || Character.isISOControl(c) || c == '\\') {
+                return false;
+            }
+        }
+        // Anti-FP: identificatori camelCase/snake_case di 16/24/32 char
+        // ("verificationNote", "handleLocalFileSelection") non sono chiavi.
+        if (s.matches("^[a-z]+([A-Z][a-zA-Z0-9]*)+$") || s.matches("^[a-z]+(_[a-z0-9]+)+$")) {
+            return false;
+        }
+        // Anti-FP: le chiavi vere sono quasi casuali (entropia alta); le parole
+        // inglesi e gli identificatori stanno sotto ~3.7 bit/char.
+        if (shannonEntropy(s) < 3.8) {
+            return false;
+        }
         boolean hasUpper = false;
         boolean hasLower = false;
         boolean hasDigit = false;
@@ -143,6 +160,23 @@ public class BytecodeAnalyzer {
             hasDigit = true;
         }
         return hasUpper && hasLower || hasUpper && hasDigit || hasLower && hasDigit;
+    }
+
+    private static double shannonEntropy(String s) {
+        int[] freq = new int[256];
+        for (int i = 0; i < s.length(); i++) {
+            freq[s.charAt(i) & 0xFF]++;
+        }
+        double entropy = 0.0;
+        double len = s.length();
+        for (int count : freq) {
+            if (count == 0) {
+                continue;
+            }
+            double p = (double) count / len;
+            entropy -= p * (Math.log(p) / Math.log(2.0));
+        }
+        return entropy;
     }
 
     static {
@@ -480,7 +514,14 @@ public class BytecodeAnalyzer {
                 }
             }
             if (this.hasCryptoKeyString) {
-                this.result.add(new Finding("constant-pool-crypto-key", "Possibile chiave crypto hardcodata nel Constant Pool: " + location, Severity.MEDIUM, Category.CRYPTO).withLocation(location));
+                List<String> keys = new ArrayList<>();
+                for (String cpFinding : this.constantPoolFindings) {
+                    if (!cpFinding.startsWith("Possible crypto key")) continue;
+                    if (keys.size() < 3) {
+                        keys.add(cpFinding);
+                    }
+                }
+                this.result.add(new Finding("constant-pool-crypto-key", "Possibile chiave crypto hardcodata nel Constant Pool: " + location, Severity.MEDIUM, Category.CRYPTO).withLocation(location).withEvidence(keys.isEmpty() ? null : String.join((CharSequence)"\n", keys)));
             }
             if (this.instructionCount > 2000) {
                 this.result.add(new Finding("large-method", "Metodo molto grande: " + this.instructionCount + " istruzioni (soglia: 2000). Metodi eccessivamente grandi sono tipici di codice offuscato, payload cifrati, o bytecode generato automaticamente.", Severity.MEDIUM, Category.OBFUSCATION).withLocation(location));

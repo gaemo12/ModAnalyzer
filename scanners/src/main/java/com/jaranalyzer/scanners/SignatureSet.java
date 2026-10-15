@@ -69,6 +69,22 @@ public interface SignatureSet {
         return stringSignatures().stream().filter(s -> content.contains(s.pattern())).toList();
     }
 
+    /**
+     * Come {@link #matchStrings(String)} ma case-insensitive (Fase 1
+     * anti-evasione): confronta su vista lowercase sia del contenuto che dei
+     * pattern. Restituisce gli stessi record (pattern originali) per evidenze
+     * stabili; il chiamante unisce i due set senza duplicati.
+     */
+    default List<SigPattern> matchStringsNormalized(String content) {
+        if (content == null || content.isEmpty()) {
+            return List.of();
+        }
+        String lower = content.toLowerCase(java.util.Locale.ROOT);
+        return stringSignatures().stream()
+                .filter(s -> lower.contains(s.pattern().toLowerCase(java.util.Locale.ROOT)))
+                .toList();
+    }
+
     /** Ritorna la API sospetta per owner/method, o null. */
     default SuspApi suspiciousApi(String owner, String method) {
         if (owner == null || method == null) {

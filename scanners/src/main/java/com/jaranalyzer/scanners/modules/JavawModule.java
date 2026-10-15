@@ -84,7 +84,7 @@ public final class JavawModule implements ScanModule {
             findings.addAll(javaw.matchText(redacted, location));
         }
         progress.report(id(), "done", 100);
-        Map<String, Long> counters = new HashMap<>();
+        Map<String, Long> counters = new java.util.LinkedHashMap<>(); // ordine stabile nel JSON (determinismo)
         counters.put("javaProcesses", javaCount);
         counters.put("minecraftLike", mcCount);
         counters.put("noDetails", noDetails);

@@ -66,8 +66,22 @@ Output:
 
 ## Download
 
-Scarica la prima versione già buildata dalle **[Release](../../releases)**:
+Scarica la versione già buildata dalle **[Release](../../releases)**:
 `ModScanOpen.zip` → scompatta → avvia `ModScanOpen.exe`.
+
+## Rilevamento (v1.1.0)
+
+- Anti-evasione stringhe: match case-insensitive, ricomposizione `LDC` spezzate,
+  decodifica Base64/hex con re-scan degli indicatori di rete.
+- Voci oltre il limite analizzate sul campione iniziale (finding `oversize-sampled`),
+  mai più punti ciechi silenziosi.
+- Scansione ricorsiva dei JAR/ZIP annidati (profondità 2, budget 64 MB).
+- Mod VERIFIED su Modrinth/Megabase: euristici declassati di un livello
+  (campo `verifiedDowngrade` nel JSON).
+- Punteggio pesato per categoria di evidenza; entropia top-5 voci +
+  whitelist formati compressi.
+- Meno falsi positivi: niente più flag su classi package-private, `jcmd.exe`,
+  frasi comuni e identificatori scambiati per chiavi.
 
 ## Licenza
 

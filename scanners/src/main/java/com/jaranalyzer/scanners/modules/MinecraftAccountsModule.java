@@ -61,7 +61,7 @@ public final class MinecraftAccountsModule implements ScanModule {
                     "Launcher: " + a.launcher() + "\nTipo: " + a.type()
                             + (a.uuid().isEmpty() ? "" : "\nUUID: " + a.uuid())));
         }
-        Map<String, Long> counters = new HashMap<>();
+        Map<String, Long> counters = new java.util.LinkedHashMap<>(); // ordine stabile nel JSON (determinismo)
         counters.put("accounts", (long) accounts.size());
         counters.put("launchers", (long) launchers.size());
         log.info("minecraft_accounts: {} account, {} launcher", accounts.size(), launchers.size());

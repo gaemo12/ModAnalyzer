@@ -77,6 +77,14 @@ final class OpenAnalysis {
                     }
                 }
             }
+            Map<String, Object> modInfo = modInfo(findings, stats, file.toPath());
+            // Mod con release ufficiale verificata: gli euristici (cheat/offuscamento)
+            // scendono di un livello, perché Mixin/ASM/reflection sono normali nelle
+            // mod legittime (Fase 4). Le evidenze forti (rete, firme) restano intatte.
+            int downgraded = 0;
+            if ("VERIFIED".equals(modInfo.get("modrinthStatus"))) {
+                downgraded = downgradeHeuristics(findings);
+            }
             int riskScore = riskScore(findings);
             String riskLevel = riskLevel(riskScore);
 
@@ -85,10 +93,11 @@ final class OpenAnalysis {
             out.put("success", mr.success());
             out.put("riskScore", riskScore);
             out.put("riskLevel", riskLevel);
+            out.put("verifiedDowngrade", downgraded);
             out.put("analysisTimeMs", System.currentTimeMillis() - t0);
             out.put("timestamp", java.time.Instant.now().toString());
             out.put("metadata", stats.meta);
-            out.put("modInfo", modInfo(findings, stats, file.toPath()));
+            out.put("modInfo", modInfo);
             out.put("findings", findings);
             if (!mr.success() && mr.error() != null) {
                 out.put("error", mr.error());
@@ -108,29 +117,75 @@ final class OpenAnalysis {
 
     /* ---------- punteggio di rischio (identico alla vecchia AnalysisService) ---------- */
 
+    /** Categorie euristiche: indizi comportamentali, non prove (Fase 4). */
+    private static final Set<String> HEURISTIC_CATEGORIES = Set.of(
+            "CHEAT", "EXECUTION", "OBFUSCATION", "MALWARE_BEHAVIOR");
+
+    /**
+     * Declassa di un livello i finding euristici (mai sotto LOW, mai INFO):
+     * una mod VERIFIED su Modrinth/Megabase con Mixin o reflection resta
+     * normale. Ritorna il numero di finding declassati; aggiunge nota
+     * all'evidence per trasparenza. Opera in place sulla lista.
+     */
+    static int downgradeHeuristics(List<Map<String, Object>> findings) {
+        int n = 0;
+        for (Map<String, Object> f : findings) {
+            String sev = String.valueOf(f.get("severity")).toUpperCase(Locale.ROOT);
+            String cat = String.valueOf(f.get("category")).toUpperCase(Locale.ROOT);
+            if (!HEURISTIC_CATEGORIES.contains(cat)) {
+                continue;
+            }
+            String next = switch (sev) {
+                case "CRITICAL" -> "HIGH";
+                case "HIGH" -> "MEDIUM";
+                case "MEDIUM" -> "LOW";
+                default -> null;
+            };
+            if (next == null) {
+                continue;
+            }
+            f.put("severity", next);
+            Object ev = f.get("evidence");
+            f.put("evidence", (ev == null ? "" : String.valueOf(ev) + "\n")
+                    + "(Declassato di un livello: mod VERIFIED su database pubblico.)");
+            n++;
+        }
+        return n;
+    }
+
     static int riskScore(List<Map<String, Object>> findings) {
         Set<String> seen = new HashSet<>();
-        int critical = 0, high = 0, medium = 0, low = 0, base = 0;
+        // Peso evidenza per categoria (Fase 5): firme/rete valgono più di
+        // euristici e metadati strutturali a parità di severity.
+        int base = 0;
+        int bonus = 0;
         for (Map<String, Object> f : findings) {
             String rule = String.valueOf(f.get("rule"));
             String sev = String.valueOf(f.get("severity")).toUpperCase(Locale.ROOT);
             if (!seen.add(rule + "|" + sev)) {
                 continue;
             }
+            String cat = String.valueOf(f.getOrDefault("category", "")).toUpperCase(Locale.ROOT);
+            int w = categoryWeight(cat);
             switch (sev) {
-                case "CRITICAL": critical++; base = Math.max(base, 65); break;
-                case "HIGH": high++; base = Math.max(base, 45); break;
-                case "MEDIUM": medium++; base = Math.max(base, 25); break;
-                case "LOW": low++; base = Math.max(base, 5); break;
+                case "CRITICAL": base = Math.max(base, 65); bonus += 8 * w; break;
+                case "HIGH": base = Math.max(base, 45); bonus += 5 * w; break;
+                case "MEDIUM": base = Math.max(base, 25); bonus += 3 * w; break;
+                case "LOW": base = Math.max(base, 5); bonus += 1 * w; break;
                 default: break;
             }
         }
-        int bonus = 0;
-        if (critical > 0) bonus += (critical - 1) * 15;
-        if (high > 0) bonus += (high - (base == 45 ? 1 : 0)) * 10;
-        if (medium > 0) bonus += (medium - (base == 25 ? 1 : 0)) * 5;
-        if (low > 0) bonus += (low - (base == 5 ? 1 : 0)) * 2;
         return Math.min(base + bonus, 100);
+    }
+
+    /** Moltiplicatore evidenza per categoria: 3 = prova forte, 1 = indizio/contesto. */
+    static int categoryWeight(String category) {
+        return switch (category) {
+            case "MALWARE_SIGNATURE", "NETWORK" -> 3;
+            case "EXECUTION", "CHEAT", "MALWARE_BEHAVIOR", "CODE_INJECTION", "CRYPTO",
+                    "SUSPICIOUS_API", "FILE_ACCESS" -> 2;
+            default -> 1;
+        };
     }
 
     static String riskLevel(int score) {

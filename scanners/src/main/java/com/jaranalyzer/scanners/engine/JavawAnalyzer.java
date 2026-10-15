@@ -167,10 +167,33 @@ implements JarAnalyzer {
         String truncated = str.length() > 150 ? str.substring(0, 150) + "\u2026" : str;
         for (List<PatternEntry> group : List.of(LAUNCHER_PATTERNS, HIDDEN_WINDOW_PATTERNS, SHELL_PATTERNS, JVM_ARG_PATTERNS, ANTI_ANALYSIS_PATTERNS, PERSISTENCE_PATTERNS, PROCESS_SELF_PATTERNS, USER_CUSTOM_STRINGS)) {
             for (PatternEntry pe : group) {
-                if (!str.contains(pe.pattern())) continue;
+                if (!containsBounded(str, pe.pattern())) continue;
                 hits.computeIfAbsent(pe, k -> new ArrayList()).add(truncated);
             }
         }
+    }
+
+    /**
+     * Contains con boundary a sinistra per i pattern corti (anti-FP): "cmd.exe"
+     * dentro "jcmd.exe" (tool JDK legittimo) non deve matchare. I pattern lunghi
+     * restano contains puro per non perdere sensibilità.
+     */
+    private static boolean containsBounded(String str, String pattern) {
+        int from = 0;
+        while (true) {
+            int idx = str.indexOf(pattern, from);
+            if (idx < 0) {
+                return false;
+            }
+            if (pattern.length() > 8 || idx == 0 || !isWordChar(str.charAt(idx - 1))) {
+                return true;
+            }
+            from = idx + 1;
+        }
+    }
+
+    private static boolean isWordChar(char c) {
+        return c == '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9';
     }
 
     private String buildTitle(PatternEntry pe) {

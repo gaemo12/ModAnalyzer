@@ -194,7 +194,7 @@ public final class ModsFolderModule implements ScanModule {
 
     private ModuleResult result(long start, List<Finding> findings, long files,
             long suspicious, long failed, long bytes) {
-        Map<String, Long> counters = new HashMap<>();
+        Map<String, Long> counters = new java.util.LinkedHashMap<>(); // ordine stabile nel JSON (determinismo)
         counters.put("files", files);
         counters.put("suspicious", suspicious);
         counters.put("failed", failed);
