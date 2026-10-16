@@ -71,7 +71,19 @@
     function pid() {
         const v = (pidInput.value || '').trim();
         if (/^\d+$/.test(v) || v.toLowerCase() === 'auto') return v.toLowerCase();
-        return null;
+        return 'auto';
+    }
+    async function loadProcs() {
+        try {
+            const data = await J.api('/api/mem/processes');
+            const list = (data && data.processes) || [];
+            pidInput.innerHTML = '<option value="auto">auto — primo javaw/java</option>' + list.map((p) =>
+                '<option value="' + p.pid + '">' + p.pid + ' — ' + J.esc(p.exe || 'java') +
+                (p.minecraftLike ? ' ★' : '') + '</option>').join('');
+            $('mem-path').textContent = list.length ? list.length + ' processi Java trovati' : 'Nessun processo Java in esecuzione';
+        } catch (e) {
+            J.error(e.message || 'Elenco processi fallito.');
+        }
     }
     function scan() {
         const p = pid() || 'auto';
@@ -80,9 +92,8 @@
         analyze('PID ' + p, () => J.api('/api/mem/dump', { method: 'POST', body: 'pid=' + encodeURIComponent(p) }));
     }
 
-    $('btn-mem-auto').onclick = () => { pidInput.value = 'auto'; $('mem-path').textContent = 'javaw rilevato automaticamente'; };
+    $('btn-mem-auto').onclick = () => { loadProcs(); };
     scanBtn.onclick = () => scan();
-    pidInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') scan(); });
 
     J.mem = { scan: (p) => { if (p) pidInput.value = p; scan(); }, last: () => current };
     J.ready(idle);

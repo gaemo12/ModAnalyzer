@@ -69,6 +69,15 @@ Output:
 Scarica la versione già buildata dalle **[Release](../../releases)**:
 `ModScanOpen.zip` → scompatta → avvia `ModScanOpen.exe`.
 
+## Rilevamento (v1.5.3)
+
+- 4 falsi positivi CRITICAL eliminati alla fonte (verificati sul dump IntelliJ,
+  8→3): package ransomware solo su segmenti (`Decrypter` Maven non matcha più
+  `crypter`); `javax.net.ssl.*` escluso dai wallet path; trasformazioni Cipher
+  (`AES/CBC/...`) escluse dalle chiavi; TrustManager delegati esclusi dall'SSL bypass.
+- Process picker: `GET /api/mem/processes` + select nella card Memoria (niente
+  più auto cieco sul primo java).
+
 ## Rilevamento (v1.5.2)
 
 - Meno falsi positivi sui dump: classi JDK scartate al pack (bootstrap/jrt +

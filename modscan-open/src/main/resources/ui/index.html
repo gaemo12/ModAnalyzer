@@ -85,8 +85,8 @@
       <div class="mfold">
         <div class="path"><span class="pic"><svg class="ic" style="width:22px;height:22px"><use href="#i-cpu"/></svg></span>
           <div><code id="mem-path">Nessun processo selezionato</code><small>Dump opt-in del bytecode dalla JVM in esecuzione: attach, dump, scansione. Nulla viene eseguito.</small></div></div>
-        <div class="row"><label class="search" style="max-width:200px"><svg class="ic"><use href="#i-search"/></svg><input id="mem-pid" placeholder="PID o auto" aria-label="PID del processo Java"></label>
-          <button class="btn sec" id="btn-mem-auto" type="button"><svg class="ic"><use href="#i-cpu"/></svg>Trova javaw</button>
+        <div class="row"><label class="search" style="max-width:280px"><svg class="ic"><use href="#i-search"/></svg><select id="mem-pid" aria-label="Processo Java bersaglio"><option value="auto">auto — primo javaw/java</option></select></label>
+          <button class="btn sec" id="btn-mem-auto" type="button"><svg class="ic"><use href="#i-cpu"/></svg>Elenca processi</button>
           <button class="btn" id="btn-mem-scan" type="button"><svg class="ic"><use href="#i-shield"/></svg>Dump e scansiona</button></div>
       </div>
       <ul class="steps" id="mem-steps" aria-live="polite"></ul>

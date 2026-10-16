@@ -114,10 +114,15 @@ implements JarAnalyzer {
                                 public void visitMethodInsn(int opc, String owner, String name, String d, boolean itf) {
                                     String loc;
                                     if (SSL_BYPASS_OWNERS.contains(owner) && SSL_BYPASS_METHODS.contains(name)) {
-                                        sslBypassCount.incrementAndGet();
-                                        loc = entryName + "::" + mName + " \u2192 " + owner.replace('/', '.') + "." + name;
-                                        if (sslBypassLocs.size() < 5) {
-                                            sslBypassLocs.add(loc);
+                                        // Override che delega (stesso nome del metodo chiamato, es. un
+                                        // TrustManager wrapper): legittimo, non bypass. Il bypass vero
+                                        // non delega a nessuno.
+                                        if (!name.equals(mName)) {
+                                            sslBypassCount.incrementAndGet();
+                                            loc = entryName + "::" + mName + " \u2192 " + owner.replace('/', '.') + "." + name;
+                                            if (sslBypassLocs.size() < 5) {
+                                                sslBypassLocs.add(loc);
+                                            }
                                         }
                                     }
                                     if (SOCKET_OWNERS.contains(owner)) {

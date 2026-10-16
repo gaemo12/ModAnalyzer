@@ -61,6 +61,8 @@ public final class OpenApi {
                     return OpenMods.folder(params.get("path"));
                 case "GET /api/mods/locate":
                     return OpenMods.locate();
+                case "GET /api/mem/processes":
+                    return memProcesses();
                 case "POST /api/mem/dump":
                     return memDump(params.get("pid"));
                 default:
@@ -76,6 +78,38 @@ public final class OpenApi {
 
     private static Response ok(Object payload) {
         return new Response(200, JsonCodec.write(payload));
+    }
+
+    /** Processi Java tra cui scegliere il bersaglio del dump (niente auto cieco). */
+    static Response memProcesses() {
+        try {
+            java.util.List<Map<String, Object>> out = new java.util.ArrayList<>();
+            for (com.jaranalyzer.scanners.engine.ProcessInventory.ProcInfo p
+                    : com.jaranalyzer.scanners.engine.ProcessInventory.snapshot()) {
+                if (!p.java()) {
+                    continue;
+                }
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("pid", p.pid());
+                String exe = p.executable() == null ? "" : p.executable();
+                int s = Math.max(exe.lastIndexOf('/'), exe.lastIndexOf('\\'));
+                m.put("exe", s >= 0 ? exe.substring(s + 1) : exe);
+                String cmd = p.commandLine() == null ? "" : p.commandLine();
+                try {
+                    cmd = com.jaranalyzer.scanners.engine.Sanitizer.redactHome(
+                            cmd, System.getProperty("user.home", ""));
+                } catch (Exception ignored) {
+                    // riga comando al grezzo
+                }
+                m.put("cmd", cmd.length() > 160 ? cmd.substring(0, 160) + "…" : cmd);
+                m.put("minecraftLike", p.minecraftLike());
+                out.add(m);
+            }
+            return ok(Map.of("processes", out));
+        } catch (Exception e) {
+            String m = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            return new Response(500, JsonCodec.write(Map.of("error", "Elenco processi fallito", "message", m)));
+        }
     }
 
     /**

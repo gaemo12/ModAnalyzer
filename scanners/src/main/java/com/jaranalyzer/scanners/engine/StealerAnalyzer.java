@@ -138,6 +138,9 @@ implements JarAnalyzer {
                                             break;
                                         }
                                         for (String walletPath : CRYPTO_WALLET_PATHS) {
+                                            // "javax.net.ssl.keyStore" contiene "keystore" ma e' configurazione
+                                            // JSSE standard, non un path di wallet (FP su IDE/Maven).
+                                            if (lower.contains("javax.net.ssl")) continue;
                                             if (!lower.contains(walletPath.toLowerCase(Locale.ROOT))) continue;
                                             ((AtomicInteger)counts.get("wallet")).incrementAndGet();
                                             if (walletPaths.size() >= 10) break;
@@ -186,6 +189,8 @@ implements JarAnalyzer {
                         break;
                     }
                     for (String walletPath : CRYPTO_WALLET_PATHS) {
+                        // vedi sopra: proprieta' javax.net.ssl.* non sono wallet path.
+                        if (lower.contains("javax.net.ssl")) continue;
                         if (!lower.contains(walletPath.toLowerCase(Locale.ROOT))) continue;
                         ((AtomicInteger)counts.get("wallet")).incrementAndGet();
                         break;

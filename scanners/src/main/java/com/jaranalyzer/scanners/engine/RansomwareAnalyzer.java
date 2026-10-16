@@ -81,8 +81,19 @@ implements JarAnalyzer {
             block21: while (en.hasMoreElements()) {
                 JarEntry entry = en.nextElement();
                 String name = entry.getName();
+                // Match sui SEGMENTI di package (non substring): "Decrypter" contiene
+                // "crypter" ma org/apache/maven/settings/crypto e' legittimo (FP su
+                // Maven/plexus). Il nome classe non conta, solo i segmenti di package.
+                String pkgPath = name;
+                int dot = name.lastIndexOf('.');
+                int slash = name.lastIndexOf('/', dot < 0 ? name.length() : dot);
+                if (slash > 0) {
+                    pkgPath = name.substring(0, slash);
+                } else if (dot >= 0) {
+                    pkgPath = "";
+                }
                 for (String pkg : RANSOM_PACKAGES) {
-                    if (!name.contains(pkg)) continue;
+                    if (!segmentContains(pkgPath, pkg)) continue;
                     classesWithRansomPkg.add(name);
                     break;
                 }
@@ -234,5 +245,18 @@ implements JarAnalyzer {
         }
         log.info("Ransomware analysis complete \u2013 {} finding(s)", (Object)findings.size());
         return findings;
+    }
+
+    /** Vero se un SEGMENTO di package contiene il marker (mai a cavallo di '/'). */
+    private static boolean segmentContains(String pkgPath, String marker) {
+        if (pkgPath == null || pkgPath.isEmpty() || marker == null || marker.isEmpty()) {
+            return false;
+        }
+        for (String seg : pkgPath.split("/", -1)) {
+            if (seg.contains(marker)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

@@ -257,6 +257,11 @@ implements JarAnalyzer {
         if (s.length() < 8) {
             return false;
         }
+        // Anti-FP: stringhe di trasformazione Cipher ("AES/CBC/PKCS5Padding",
+        // "PBEWithMD5AndDES") non sono chiavi (FP su PBECipher/plexus).
+        if (s.matches("(?i)[A-Za-z0-9._+-]+/[A-Za-z0-9._+-]+/[A-Za-z0-9._+-]+")) {
+            return false;
+        }
         // Anti-FP (come BytecodeAnalyzer.looksLikeCryptoKey): niente spazi/controlli/backslash.
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
