@@ -38,7 +38,10 @@ final class OpenMods {
     /** Come la vecchia app (e il Player): oltre questa soglia la scansione è rifiutata esplicitamente. */
     static final int MAX_MOD_FILES = 5_000;
 
-    /* Marker classici di client/cheat: si cercano nei Percorsi delle voci di ogni jar. Lista locale, nessuna rete. */
+    /* Marker classici di client/cheat: si cercano nei Percorsi delle voci di ogni jar. Lista locale, nessuna rete.
+     * NOTA ATTRIBUZIONE (rev. ott-2026): questa lista coincide in larga parte con gli indicatori dello
+     * script "Meow Mod Analyzer" (MeowTonynoh). Se deriva da lì, verificare compatibilità di licenza
+     * e aggiungere credito esplicito prima di estenderla. */
     private static final String[] QUICK_FLAG_PREFIXES = {
             "aimassist", "anchortweaks", "autoanchor", "autocrystal", "autodoublehand", "autohitcrystal",
             "autopot", "autototem", "autoarmor", "inventorytotem", "legittotem", "pingspoof", "selfdestruct",

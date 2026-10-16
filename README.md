@@ -69,6 +69,14 @@ Output:
 Scarica la versione già buildata dalle **[Release](../../releases)**:
 `ModScanOpen.zip` → scompatta → avvia `ModScanOpen.exe`.
 
+## Rilevamento (v1.3.0)
+
+- Pulsante "Segnala bug" nell'header: copia un template diagnostico e apre
+  le issue GitHub nel browser (`MsBridge.openIssues`, la WebView non naviga).
+- Badge versione agganciato a `J.version` (era fermo a v1.0.0).
+- Nota di attribuzione su `QUICK_FLAG_PREFIXES` (sovrapposizione con lo
+  script Meow: da verificare prima di estenderla).
+
 ## Rilevamento (v1.2.0)
 
 - Motore a regole IOC sul constant pool (`rules/ioc-rules.json`, dati non codice):

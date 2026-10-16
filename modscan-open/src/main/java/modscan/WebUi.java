@@ -299,6 +299,21 @@ public final class WebUi extends Application {
             });
         }
 
+        /** Apre la pagina delle issue GitHub nel browser di sistema (la WebView non naviga mai fuori). */
+        public void openIssues() {
+            String url = "https://github.com/gaemo12/ModAnalyzer/issues/new";
+            try {
+                java.awt.Desktop d = java.awt.Desktop.getDesktop();
+                if (d.isSupported(java.awt.Desktop.Action.BROWSE)) {
+                    d.browse(new java.net.URI(url));
+                    return;
+                }
+            } catch (Exception ex) {
+                System.err.println("Apertura issue fallita: " + ex.getMessage());
+            }
+            notifyJs("handleBugFallback", url);
+        }
+
         private void notifyJs(String fn, String arg) {
             try {
                 webEngine.executeScript("if(window." + fn + "){window." + fn + "(" + js(arg) + ");}");

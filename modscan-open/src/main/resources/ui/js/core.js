@@ -10,6 +10,19 @@
     J.esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     J.ic = (n, size) => '<svg class="ic" aria-hidden="true"' + (size ? ' style="width:' + size + 'px;height:' + size + 'px"' : '') + '><use href="#i-' + n + '"/></svg>';
     J.base = (p) => { const i = Math.max(String(p).lastIndexOf('/'), String(p).lastIndexOf('\\')); return i >= 0 ? String(p).slice(i + 1) : String(p); };
+    J.version = '1.3.0';
+    J.issuesUrl = 'https://github.com/gaemo12/ModAnalyzer/issues/new';
+    J.reportBug = function () {
+        const tpl = 'ModScanOpen v' + J.version + ' - bug report\nSO: ' + (navigator.platform || '?')
+            + '\n\nCosa stavi facendo:\n\nCosa ti aspettavi:\n\nCosa e\' successo (regola/titolo del finding):\n';
+        J.copy(tpl, 'Template copiato: incollalo nella issue');
+        try {
+            const b = window.javafxBridge;
+            if (b && typeof b.openIssues === 'function') { b.openIssues(); return; }
+        } catch (e) { /* fallback sotto */ }
+        J.copy(J.issuesUrl, 'Bridge assente: link copiato, aprilo nel browser');
+    };
+    window.handleBugFallback = function (url) { J.copy(url || J.issuesUrl, 'Link copiato: aprilo nel browser'); };
 
     J.fmtBytes = function (b) {
         if (b == null || isNaN(b)) return '—';
@@ -252,6 +265,10 @@
 
     function boot() {
         J.pick('jar');
+        const vb = J.$('version-badge');
+        if (vb) vb.textContent = 'v' + J.version + ' — open source';
+        const bb = J.$('btn-bug');
+        if (bb) bb.addEventListener('click', () => J.reportBug());
         if (window.J_boot) window.J_boot.forEach((f) => f());
     }
     J.ready = (f) => { (window.J_boot = window.J_boot || []).push(f); };
