@@ -94,6 +94,17 @@ public final class OpenApi {
                 return base;
             }
             Map<String, Object> body = new LinkedHashMap<>(JsonCodec.parseObject(base.body));
+            Object fo = body.get("findings");
+            if (fo instanceof java.util.List) {
+                Map<String, String> origins = MemDump.readOrigins(workDir.resolve("classes-" + pid));
+                for (Object o : (java.util.List<?>) fo) {
+                    if (o instanceof Map) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> fm = (Map<String, Object>) o;
+                        MemDump.attachOrigin(fm, origins);
+                    }
+                }
+            }
             body.put("kind", "mem");
             body.put("module", "mem_dump");
             body.put("source", "memory");

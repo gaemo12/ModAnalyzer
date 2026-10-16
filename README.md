@@ -69,6 +69,13 @@ Output:
 Scarica la versione già buildata dalle **[Release](../../releases)**:
 `ModScanOpen.zip` → scompatta → avvia `ModScanOpen.exe`.
 
+## Rilevamento (v1.5.2)
+
+- Meno falsi positivi sui dump: classi JDK scartate al pack (bootstrap/jrt +
+  package `java/javax/jdk/sun/com.sun`); sulla vittima demo da 218 a 11 finding.
+- Attribuzione origine: l'agent scrive `origins.txt` (CodeSource per classe),
+  ogni finding ha campo `origin` e suffisso in location col jar di provenienza.
+
 ## Rilevamento (v1.5.1)
 
 - Memory-dump spostato nella sezione Mods (niente terza tab): card dedicata

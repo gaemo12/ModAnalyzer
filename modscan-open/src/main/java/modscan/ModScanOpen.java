@@ -99,7 +99,7 @@ public final class ModScanOpen {
             }
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("tool", "ModScanOpen");
-            out.put("version", "1.5.1");
+            out.put("version", "1.5.2");
             out.put("openSource", true);
             out.put("results", results);
             String json = JsonCodec.write(out);
@@ -180,7 +180,12 @@ public final class ModScanOpen {
                 r.put("success", mr.success());
                 r.put("durationMillis", mr.durationMillis());
                 r.put("counters", mr.counters());
-                r.put("findings", jsonFindings(mr));
+                List<Map<String, Object>> fj = jsonFindings(mr);
+                Map<String, String> origins = MemDump.readOrigins(workDir.resolve("classes-" + pid));
+                for (Map<String, Object> f : fj) {
+                    MemDump.attachOrigin(f, origins);
+                }
+                r.put("findings", fj);
                 r.put("file", Sanitizer.fileName(packed));
                 if (mr.error() != null) {
                     r.put("error", mr.error());
@@ -309,7 +314,7 @@ public final class ModScanOpen {
         }
 
         static void usage() {
-            System.out.println("ModScanOpen 1.5.1 — scansioni mod, open source (MIT), offline\n"
+            System.out.println("ModScanOpen 1.5.2 — scansioni mod, open source (MIT), offline\n"
                     + "\n"
                     + "  scan --jar <file.jar>              analizza un file .jar\n"
                     + "  scan --mods <cartella|auto>        analizza tutta la cartella delle mod (auto: dal processo javaw)\n"

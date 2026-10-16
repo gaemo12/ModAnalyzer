@@ -42,6 +42,17 @@ public class MemAgentSelfTest {
       waited += 500;
     }
     check("marker di fine dump", Files.isRegularFile(marker));
+    Path origins = out.resolve("origins.txt");
+    check("origins.txt presente", Files.isRegularFile(origins));
+    boolean selfOrigin = false;
+    if (Files.isRegularFile(origins)) {
+      for (String line : Files.readAllLines(origins, java.nio.charset.StandardCharsets.UTF_8)) {
+        if (line.startsWith("MemAgentSelfTest\t") && !line.endsWith("bootstrap")) {
+          selfOrigin = true;
+        }
+      }
+    }
+    check("origine propria registrata (non bootstrap)", selfOrigin);
     long classes = Files.walk(out).filter(p -> p.toString().endsWith(".class")).count();
     check("classi catturate (>0)", classes > 0);
     check("classe propria nel dump", Files.isRegularFile(out.resolve("MemAgentSelfTest.class")));

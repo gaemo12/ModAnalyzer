@@ -20,6 +20,7 @@ if errorlevel 1 (
 )
 
 echo 1/5 Compilo modscan-open...
+if exist modscan-open\target\lib rmdir /s /q modscan-open\target\lib
 call %MVN% -q -DskipTests package -pl common,scanners,memagent,modscan-open -am
 if errorlevel 1 ( echo Compilazione fallita. & exit /b 1 )
 if not exist modscan-open\target\ModScanOpen.jar ( echo Jar mancante. & exit /b 1 )

@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import java.util.stream.Stream;
@@ -21,6 +22,9 @@ final class MemDump {
     /** Attesa massima del marker di fine dump (retransform di migliaia di classi). */
     static final long DUMP_TIMEOUT_MS = 120_000;
     static final long POLL_MS = 500;
+    /** Package sempre JDK: mai interessanti per le mod, solo rumore. */
+    static final java.util.Set<String> JDK_PREFIXES = java.util.Set.of(
+            "java/", "javax/", "jdk/", "sun/", "com/sun/");
 
     private MemDump() {
     }
@@ -78,7 +82,87 @@ final class MemDump {
             // l'agent resta caricato nel bersaglio ma inerte (solo transformer-osservatore)
         }
         waitMarker(dumpDir);
-        return pack(pid, dumpDir, workDir);
+        Map<String, String> origins = readOrigins(dumpDir);
+        Path jar = pack(pid, dumpDir, workDir, origins);
+        writeOriginsJson(workDir, pid, origins);
+        return jar;
+    }
+
+    static Path originsPath(Path workDir, String pid) {
+        return workDir.resolve("origins-" + pid + ".json");
+    }
+
+    /** origins.txt dell'agent (nome interno TAB origine) -> mappa. */
+    static Map<String, String> readOrigins(Path dumpDir) {
+        Map<String, String> m = new java.util.LinkedHashMap<>();
+        Path f = dumpDir.resolve("origins.txt");
+        if (!Files.isRegularFile(f)) {
+            return m;
+        }
+        try {
+            for (String line : Files.readAllLines(f, java.nio.charset.StandardCharsets.UTF_8)) {
+                int tab = line.indexOf('\t');
+                if (tab > 0) {
+                    m.put(line.substring(0, tab), line.substring(tab + 1));
+                }
+            }
+        } catch (Exception ignored) {
+            // origins facoltative: si analizza senza attribuzione
+        }
+        return m;
+    }
+
+    /** Vero se la classe viene dal runtime JDK (bootstrap/jrt o package noto). */
+    static boolean isJdk(String internalName, String origin) {
+        if (origin != null && (origin.equals("bootstrap") || origin.startsWith("jrt:/"))) {
+            return true;
+        }
+        if (internalName != null) {
+            for (String p : JDK_PREFIXES) {
+                if (internalName.startsWith(p)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Nome corto dell'origine per i report (basename del jar/URL). */
+    static String shortOrigin(String origin) {
+        if (origin == null || origin.isBlank()) {
+            return "sconosciuta";
+        }
+        String o = origin.trim();
+        int cut = Math.max(o.lastIndexOf('/'), o.lastIndexOf('\\'));
+        String base = cut >= 0 && cut + 1 < o.length() ? o.substring(cut + 1) : o;
+        return base.length() > 80 ? base.substring(0, 80) + "…" : base;
+    }
+
+    /** Aggiunge "origin" e suffisso alla location di un finding (mappa location tabellare). */
+    static void attachOrigin(Map<String, Object> finding, Map<String, String> origins) {
+        if (finding == null || origins == null || origins.isEmpty()) {
+            return;
+        }
+        Object loc = finding.get("location");
+        if (!(loc instanceof String)) {
+            return;
+        }
+        String entry = (String) loc;
+        int method = entry.indexOf("::");
+        if (method >= 0) {
+            entry = entry.substring(0, method);
+        }
+        entry = entry.replaceFirst(" \\(\\+\\d+\\)$", "");
+        if (!entry.endsWith(".class")) {
+            return;
+        }
+        String internal = entry.substring(0, entry.length() - 6);
+        String origin = origins.get(internal);
+        if (origin == null) {
+            return;
+        }
+        finding.put("origin", origin);
+        finding.put("location", loc + " ← " + shortOrigin(origin));
     }
 
     private static void waitMarker(Path dumpDir) throws IOException {
@@ -98,14 +182,20 @@ final class MemDump {
         }
     }
 
-    private static Path pack(String pid, Path dumpDir, Path workDir) throws IOException {
+    private static Path pack(String pid, Path dumpDir, Path workDir, Map<String, String> origins) throws IOException {
         Path jar = workDir.resolve("mem-" + pid + ".jar");
         Files.deleteIfExists(jar);
+        int skippedJdk = 0;
         try (JarOutputStream j = new JarOutputStream(Files.newOutputStream(jar));
                 Stream<Path> walk = Files.walk(dumpDir)) {
             for (Path f : (Iterable<Path>) walk.filter(Files::isRegularFile)::iterator) {
                 String name = dumpDir.relativize(f).toString().replace('\\', '/');
                 if (!name.endsWith(".class") || name.contains("..")) {
+                    continue;
+                }
+                String internal = name.substring(0, name.length() - 6);
+                if (isJdk(internal, origins.get(internal))) {
+                    skippedJdk++;
                     continue;
                 }
                 j.putNextEntry(new JarEntry(name));
@@ -116,7 +206,34 @@ final class MemDump {
         if (Files.size(jar) < 100) {
             throw new IOException("dump vuoto: nessuna classe catturata dal pid " + pid);
         }
+        System.err.println("mem-dump: classi JDK scartate: " + skippedJdk);
         return jar;
+    }
+
+    private static void writeOriginsJson(Path workDir, String pid, Map<String, String> origins) {
+        Map<String, String> perEntry = new java.util.LinkedHashMap<>();
+        for (Map.Entry<String, String> e : origins.entrySet()) {
+            perEntry.put(e.getKey() + ".class", e.getValue());
+        }
+        try {
+            StringBuilder sb = new StringBuilder("{\n");
+            boolean first = true;
+            for (Map.Entry<String, String> e : perEntry.entrySet()) {
+                if (!first) {
+                    sb.append(",\n");
+                }
+                first = false;
+                sb.append('"').append(escape(e.getKey())).append("\":\"").append(escape(e.getValue())).append('"');
+            }
+            sb.append("\n}\n");
+            Files.writeString(originsPath(workDir, pid), sb.toString(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception ignored) {
+            // origins best-effort
+        }
+    }
+
+    private static String escape(String s) {
+        return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private static void deleteTree(Path dir) throws IOException {

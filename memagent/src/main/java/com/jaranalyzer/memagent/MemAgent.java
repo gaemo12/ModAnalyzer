@@ -25,6 +25,8 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class MemAgent {
     private static final Map<String, byte[]> CACHE = new ConcurrentHashMap<>();
+    /** Origine per classe (CodeSource o "bootstrap"): attribuzione nei report. */
+    private static final Map<String, String> ORIGINS = new ConcurrentHashMap<>();
 
     private MemAgent() {
     }
@@ -52,9 +54,10 @@ public final class MemAgent {
             retransformAll(inst);
         }
         int n = dump(dir);
+        int o = dumpOrigins(dir);
         try {
             Files.writeString(new File(dir, "done.marker").toPath(),
-                    "classes=" + n + "\n", StandardCharsets.UTF_8);
+                    "classes=" + n + " origins=" + o + "\n", StandardCharsets.UTF_8);
         } catch (Exception e) {
             System.err.println("[MemAgent] marker fallito: " + e.getMessage());
         }
@@ -108,6 +111,27 @@ public final class MemAgent {
         return n;
     }
 
+    /** Scrive origins.txt (nome interno TAB origine); ritorna le righe scritte. */
+    private static int dumpOrigins(File dir) {
+        int n = 0;
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, String> e : ORIGINS.entrySet()) {
+            if (e.getKey() == null || e.getValue() == null) {
+                continue;
+            }
+            sb.append(e.getKey()).append('\t')
+                    .append(e.getValue().replace('\t', '?').replace('\n', '?').replace('\r', '?'))
+                    .append('\n');
+            n++;
+        }
+        try {
+            Files.writeString(new File(dir, "origins.txt").toPath(), sb.toString(), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            System.err.println("[MemAgent] origins fallito: " + e.getMessage());
+        }
+        return n;
+    }
+
     private static Map<String, String> parse(String args) {
         Map<String, String> m = new java.util.LinkedHashMap<>();
         if (args == null) {
@@ -129,8 +153,20 @@ public final class MemAgent {
                 ProtectionDomain protectionDomain, byte[] classfileBuffer) {
             if (className != null && classfileBuffer != null && classfileBuffer.length >= 8) {
                 CACHE.putIfAbsent(className, classfileBuffer.clone());
+                ORIGINS.putIfAbsent(className, originOf(protectionDomain));
             }
             return null;
+        }
+
+        private static String originOf(ProtectionDomain pd) {
+            try {
+                if (pd != null && pd.getCodeSource() != null && pd.getCodeSource().getLocation() != null) {
+                    return pd.getCodeSource().getLocation().toString();
+                }
+            } catch (Exception ignored) {
+                // origine non leggibile: bootstrap
+            }
+            return "bootstrap";
         }
     }
 }
