@@ -34,13 +34,13 @@
 <header>
   <div class="brand"><svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle class="pr" cx="20" cy="20" r="17" stroke="#8aa4ff" stroke-width="1.5"/><rect x="3" y="3" width="34" height="34" rx="10" fill="#171513" stroke="#3d3733"/><path d="M11.5 20.5l6 6 11-12.5" stroke="#8aa4ff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg><b>ModScanOpen</b></div>
   <nav class="tabs" id="tabs" aria-label="Modalità di scansione"><div class="thumb" id="thumb"></div></nav>
-  <div class="right"><button class="btn sec sm" id="btn-bug" type="button"><svg class="ic"><use href="#i-bug"/></svg>Segnala bug</button><span class="chip" id="version-badge">v1.3.0 · open source</span></div>
+  <div class="right"><button class="btn sec sm" id="btn-bug" type="button"><svg class="ic"><use href="#i-bug"/></svg>Segnala bug</button><span class="chip" id="version-badge">v1.3.0</span></div>
 </header>
 
 <main>
   <div class="hero">
     <div id="head" class="sw"><h1 id="t"></h1><p class="lead" id="d"></p></div>
-    <div class="keys"><span><kbd>1</kbd><kbd>2</kbd> cambia modalità</span></div>
+    <div class="keys"><span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> cambia modalità</span></div>
   </div>
 
   <!-- ============ 1 · FILE JAR ============ -->
@@ -88,6 +88,28 @@
       <div id="mlist"><div class="mempty">Seleziona una cartella per vedere l'elenco delle mod.</div></div>
     </div>
   </section>
+
+  <!-- ============ 3 · MEMORIA JVM ============ -->
+  <section class="view" id="v-mem" data-v="mem" hidden>
+    <div class="bento">
+      <section class="card console" aria-label="Memory dump">
+        <div class="mfold">
+          <div class="path"><span class="pic"><svg class="ic" style="width:22px;height:22px"><use href="#i-cpu"/></svg></span>
+            <div><code id="mem-path">Nessun processo selezionato</code><small id="mem-sub">Dump opt-in del bytecode dalla JVM: attach, dump, scansione. Nulla viene eseguito.</small></div></div>
+          <div class="row"><label class="search" style="max-width:200px"><svg class="ic"><use href="#i-search"/></svg><input id="mem-pid" placeholder="PID o auto" aria-label="PID del processo Java"></label>
+            <button class="btn sec" id="btn-mem-auto" type="button"><svg class="ic"><use href="#i-cpu"/></svg>Trova javaw</button>
+            <button class="btn" id="btn-mem-scan" type="button" disabled><svg class="ic"><use href="#i-shield"/></svg>Dump e scansiona</button></div>
+        </div>
+        <ul class="steps" id="mem-steps" aria-live="polite"></ul>
+        <div class="log" id="mem-log" aria-hidden="true"></div>
+        <div class="prog"><span id="mem-pg"></span></div>
+      </section>
+      <div class="mem-right" id="mem-verdict-slot"></div>
+      <div class="mem-right" id="mem-pri-slot"></div>
+    </div>
+    <div class="rep" id="mem-rep"></div>
+    <div class="rep" id="mem-map-slot"></div>
+  </section>
 </main>
 
 <div class="tip" id="tip"></div>
@@ -97,6 +119,7 @@
 <script src="js/report.js"></script>
 <script src="js/jar.js"></script>
 <script src="js/mods.js"></script>
+<script src="js/mem.js"></script>
 <script src="js/save-file.js"></script>
 </body>
 </html>

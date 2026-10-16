@@ -15,6 +15,8 @@ import java.util.Map;
  *   <li>{@code GET /api/mods/folder?path=…} — elenco e stato delle mod di una cartella (nessun servizio esterno)</li>
  *   <li>{@code GET /api/mods/locate} — ricerca della cartella mods tra i processi javaw attivi</li>
  *   <li>{@code GET /api/health} — controllo che il bridge risponda</li>
+ *   <li>{@code POST /api/mem/dump} — memory-dump opt-in (pid=…|auto): dump del
+ *   bytecode via agent, analisi col motore locale</li>
  * </ul>
  * Nessuna rotta di licenza, nessun backend: la risposta JSON ha la stessa forma della vecchia
  * interfaccia perché la UI sia identica.
@@ -59,6 +61,8 @@ public final class OpenApi {
                     return OpenMods.folder(params.get("path"));
                 case "GET /api/mods/locate":
                     return OpenMods.locate();
+                case "POST /api/mem/dump":
+                    return memDump(params.get("pid"));
                 default:
                     return new Response(404, JsonCodec.write(Map.of(
                             "error", "Not Found",
@@ -72,6 +76,56 @@ public final class OpenApi {
 
     private static Response ok(Object payload) {
         return new Response(200, JsonCodec.write(payload));
+    }
+
+    /**
+     * Memory-dump opt-in via GUI: attach al pid, dump impacchettato e analisi
+     * con la stessa forma di {@code analyzeLocal} (kind {@code mem} +
+     * processInfo per la vista processo della UI).
+     */
+    static Response memDump(String pidSpec) {
+        try {
+            String pid = MemDump.resolvePid(pidSpec == null || pidSpec.isBlank() ? "auto" : pidSpec);
+            java.nio.file.Path workDir = java.nio.file.Path.of(
+                    System.getProperty("java.io.tmpdir", "."), "modscan-mem");
+            java.nio.file.Path packed = MemDump.capture(pid, ModScanOpen.Cli.agentJar(), workDir);
+            Response base = OpenAnalysis.analyzeLocal(packed.toString());
+            if (base.status != 200) {
+                return base;
+            }
+            Map<String, Object> body = new LinkedHashMap<>(JsonCodec.parseObject(base.body));
+            body.put("kind", "mem");
+            body.put("module", "mem_dump");
+            body.put("source", "memory");
+            body.put("pid", pid);
+            body.put("file", packed.getFileName().toString());
+            String procName = "";
+            try {
+                procName = ProcessHandle.of(Long.parseLong(pid)).map(h -> h.info())
+                        .map(i -> i.command().orElse("")).orElse("");
+            } catch (Exception ignored) {
+                // nome processo facoltativo
+            }
+            Object classes = "";
+            try {
+                Object meta = body.get("metadata");
+                if (meta instanceof Map) {
+                    Object cc = ((Map<?, ?>) meta).get("classCount");
+                    classes = cc == null ? "" : String.valueOf(cc);
+                }
+            } catch (Exception ignored) {
+                // conteggio facoltativo
+            }
+            Map<String, Object> proc = new LinkedHashMap<>();
+            proc.put("processName", procName);
+            proc.put("pid", pid);
+            proc.put("loadedClassCount", classes);
+            body.put("processInfo", proc);
+            return new Response(200, JsonCodec.write(body));
+        } catch (Exception e) {
+            String m = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            return new Response(500, JsonCodec.write(Map.of("error", "Memory dump fallito", "message", m)));
+        }
     }
 
     static void parseForm(String s, Map<String, String> into) {

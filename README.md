@@ -69,6 +69,14 @@ Output:
 Scarica la versione già buildata dalle **[Release](../../releases)**:
 `ModScanOpen.zip` → scompatta → avvia `ModScanOpen.exe`.
 
+## Rilevamento (v1.5.0)
+
+- Memory-dump anche in GUI: terza modalità "Memoria" (PID o auto, endpoint
+  `POST /api/mem/dump`, vista processo con `processInfo`), riuso del renderer
+  report e della mappa classi.
+- Fix bug reale: NPE in `InjectionAnalyzer` su `superName` null
+  (`java/lang/Object` e interfacce) — falliva su ogni dump e su molti jar reali.
+
 ## Rilevamento (v1.4.0)
 
 - Memory-dump opt-in (`scan --mem <pid|auto>`): nuovo modulo `memagent`

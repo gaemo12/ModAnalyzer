@@ -10,7 +10,7 @@
     J.esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     J.ic = (n, size) => '<svg class="ic" aria-hidden="true"' + (size ? ' style="width:' + size + 'px;height:' + size + 'px"' : '') + '><use href="#i-' + n + '"/></svg>';
     J.base = (p) => { const i = Math.max(String(p).lastIndexOf('/'), String(p).lastIndexOf('\\')); return i >= 0 ? String(p).slice(i + 1) : String(p); };
-    J.version = '1.4.0';
+    J.version = '1.5.0';
     J.issuesUrl = 'https://github.com/gaemo12/ModAnalyzer/issues/new';
     J.reportBug = function () {
         const tpl = 'ModScanOpen v' + J.version + ' - bug report\nSO: ' + (navigator.platform || '?')
@@ -212,7 +212,8 @@
     /* ---------- navigazione (solo due modalità) ---------- */
     J.modes = [
         { id: 'jar', n: 'File JAR', tab: 'File JAR', ic: 'jar', d: 'Analisi statica del bytecode: malware, offuscamento, firme note e pattern sospetti.' },
-        { id: 'mods', n: 'Cartella mods', tab: 'Mods', ic: 'folder', d: 'Trova la cartella dal gioco in esecuzione e controlla tutte le mod: sospette e da verificare.' }
+        { id: 'mods', n: 'Cartella mods', tab: 'Mods', ic: 'folder', d: 'Trova la cartella dal gioco in esecuzione e controlla tutte le mod: sospette e da verificare.' },
+        { id: 'mem', n: 'Memoria JVM', tab: 'Memoria', ic: 'cpu', d: 'Dump opt-in del bytecode da una JVM in esecuzione e scansione delle classi caricate.' }
     ];
     J.onShow = {};
     let cur = 0;

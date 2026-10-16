@@ -109,7 +109,9 @@ implements JarAnalyzer {
                     cr.accept(new ClassVisitor(589824){
 
                         public void visit(int version, int access, String name, String sig, String superName, String[] interfaces) {
-                            if (GADGET_CLASSES.contains(superName)) {
+                            // superName e' null per java/lang/Object e le interfacce: Set.of().contains(null)
+                            // lancia NPE (bug emerso sui dump di memoria, che includono sempre Object).
+                            if (superName != null && GADGET_CLASSES.contains(superName)) {
                                 gadgetCount.incrementAndGet();
                                 if (gadgetLoc.size() < 5) {
                                     gadgetLoc.add(classRef + " extends " + superName);
