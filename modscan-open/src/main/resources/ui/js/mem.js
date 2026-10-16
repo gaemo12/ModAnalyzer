@@ -76,7 +76,7 @@
     function scan() {
         const p = pid() || 'auto';
         pidInput.value = p;
-        J.pick('mem');
+        J.pick('mods');
         analyze('PID ' + p, () => J.api('/api/mem/dump', { method: 'POST', body: 'pid=' + encodeURIComponent(p) }));
     }
 

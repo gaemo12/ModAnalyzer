@@ -69,6 +69,13 @@ Output:
 Scarica la versione già buildata dalle **[Release](../../releases)**:
 `ModScanOpen.zip` → scompatta → avvia `ModScanOpen.exe`.
 
+## Rilevamento (v1.5.1)
+
+- Memory-dump spostato nella sezione Mods (niente terza tab): card dedicata
+  con PID/auto, steps, verdetto, priorità, rilevamenti e mappa classi.
+- Fix causa radice mappa assente: `J.fmtUptime` mancava e faceva fallire il
+  render del verdetto processo (`report.js:122`).
+
 ## Rilevamento (v1.5.0)
 
 - Memory-dump anche in GUI: terza modalità "Memoria" (PID o auto, endpoint

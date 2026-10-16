@@ -40,7 +40,7 @@
 <main>
   <div class="hero">
     <div id="head" class="sw"><h1 id="t"></h1><p class="lead" id="d"></p></div>
-    <div class="keys"><span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> cambia modalità</span></div>
+    <div class="keys"><span><kbd>1</kbd><kbd>2</kbd> cambia modalità</span></div>
   </div>
 
   <!-- ============ 1 · FILE JAR ============ -->
@@ -81,34 +81,28 @@
       <div class="ph" id="mods-ph" style="margin:10px 22px 0">Pronta per la scansione</div>
       <div class="msum"><div><b id="ms0">–</b>file totali</div><div><b id="ms1">–</b>verificate</div><div><b id="ms2">–</b>non verificate</div><div><b id="ms3">–</b>sospette</div><div class="bar" id="mbar"><span class="g"></span><span class="m"></span><span class="c"></span></div></div>
     </div>
+    <div class="card" style="margin-top:18px" aria-label="Memory dump">
+      <div class="mfold">
+        <div class="path"><span class="pic"><svg class="ic" style="width:22px;height:22px"><use href="#i-cpu"/></svg></span>
+          <div><code id="mem-path">Nessun processo selezionato</code><small>Dump opt-in del bytecode dalla JVM in esecuzione: attach, dump, scansione. Nulla viene eseguito.</small></div></div>
+        <div class="row"><label class="search" style="max-width:200px"><svg class="ic"><use href="#i-search"/></svg><input id="mem-pid" placeholder="PID o auto" aria-label="PID del processo Java"></label>
+          <button class="btn sec" id="btn-mem-auto" type="button"><svg class="ic"><use href="#i-cpu"/></svg>Trova javaw</button>
+          <button class="btn" id="btn-mem-scan" type="button"><svg class="ic"><use href="#i-shield"/></svg>Dump e scansiona</button></div>
+      </div>
+      <ul class="steps" id="mem-steps" aria-live="polite"></ul>
+      <div class="log" id="mem-log" aria-hidden="true"></div>
+      <div class="prog"><span id="mem-pg"></span></div>
+      <div class="rep" id="mem-verdict-slot"></div>
+      <div class="rep" id="mem-pri-slot"></div>
+      <div class="rep" id="mem-rep"></div>
+      <div class="rep" id="mem-map-slot"></div>
+    </div>
     <div class="card" style="margin-top:18px">
       <div class="mtool"><label class="search" style="max-width:320px"><svg class="ic"><use href="#i-search"/></svg><input id="mq" placeholder="Cerca una mod" aria-label="Cerca una mod"></label>
         <button class="btn sec sm" id="btn-mods-deep" type="button" disabled><svg class="ic"><use href="#i-shield"/></svg><span>Analizza le non verificate</span></button>
         <div class="filters" id="mfil"><button class="fl" data-f="all" aria-pressed="true">Tutte <span id="fa">0</span></button><button class="fl" data-f="ok" aria-pressed="false">Verificate <span id="fo">–</span></button><button class="fl" data-f="unk" aria-pressed="false">Non verificate <span id="fu">–</span></button><button class="fl" data-f="bad" aria-pressed="false">Sospette <span id="fb">–</span></button></div></div>
       <div id="mlist"><div class="mempty">Seleziona una cartella per vedere l'elenco delle mod.</div></div>
     </div>
-  </section>
-
-  <!-- ============ 3 · MEMORIA JVM ============ -->
-  <section class="view" id="v-mem" data-v="mem" hidden>
-    <div class="bento">
-      <section class="card console" aria-label="Memory dump">
-        <div class="mfold">
-          <div class="path"><span class="pic"><svg class="ic" style="width:22px;height:22px"><use href="#i-cpu"/></svg></span>
-            <div><code id="mem-path">Nessun processo selezionato</code><small id="mem-sub">Dump opt-in del bytecode dalla JVM: attach, dump, scansione. Nulla viene eseguito.</small></div></div>
-          <div class="row"><label class="search" style="max-width:200px"><svg class="ic"><use href="#i-search"/></svg><input id="mem-pid" placeholder="PID o auto" aria-label="PID del processo Java"></label>
-            <button class="btn sec" id="btn-mem-auto" type="button"><svg class="ic"><use href="#i-cpu"/></svg>Trova javaw</button>
-            <button class="btn" id="btn-mem-scan" type="button" disabled><svg class="ic"><use href="#i-shield"/></svg>Dump e scansiona</button></div>
-        </div>
-        <ul class="steps" id="mem-steps" aria-live="polite"></ul>
-        <div class="log" id="mem-log" aria-hidden="true"></div>
-        <div class="prog"><span id="mem-pg"></span></div>
-      </section>
-      <div class="mem-right" id="mem-verdict-slot"></div>
-      <div class="mem-right" id="mem-pri-slot"></div>
-    </div>
-    <div class="rep" id="mem-rep"></div>
-    <div class="rep" id="mem-map-slot"></div>
   </section>
 </main>
 

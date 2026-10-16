@@ -219,8 +219,6 @@ h1{font-size:clamp(34px,5vw,60px);line-height:1;letter-spacing:-.045em;margin:0 
 /* ===== aggiunte per l'app reale ===== */
 [hidden]{display:none!important}
 .bento>#jar-verdict-slot{grid-column:6/13;grid-row:1}.bento>#jar-pri-slot{grid-column:6/13;grid-row:2}
-.bento>#mem-verdict-slot{grid-column:6/13;grid-row:1}.bento>#mem-pri-slot{grid-column:6/13;grid-row:2}
-.bento .mem-right>.card{height:100%}
 .bento .jar-right>.card{height:100%}
 .pr{color:#5d544d}
 .steps li.fail{color:var(--crit)}.steps li.fail .d{border-color:var(--crit);background:rgba(255,69,96,.15)}

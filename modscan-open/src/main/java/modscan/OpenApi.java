@@ -106,12 +106,14 @@ public final class OpenApi {
             } catch (Exception ignored) {
                 // nome processo facoltativo
             }
-            Object classes = "";
+            Object classes = 0;
             try {
                 Object meta = body.get("metadata");
                 if (meta instanceof Map) {
                     Object cc = ((Map<?, ?>) meta).get("classCount");
-                    classes = cc == null ? "" : String.valueOf(cc);
+                    if (cc instanceof Number) {
+                        classes = ((Number) cc).intValue();
+                    }
                 }
             } catch (Exception ignored) {
                 // conteggio facoltativo
