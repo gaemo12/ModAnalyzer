@@ -10,7 +10,7 @@
     J.esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     J.ic = (n, size) => '<svg class="ic" aria-hidden="true"' + (size ? ' style="width:' + size + 'px;height:' + size + 'px"' : '') + '><use href="#i-' + n + '"/></svg>';
     J.base = (p) => { const i = Math.max(String(p).lastIndexOf('/'), String(p).lastIndexOf('\\')); return i >= 0 ? String(p).slice(i + 1) : String(p); };
-    J.version = '1.3.0';
+    J.version = '1.4.0';
     J.issuesUrl = 'https://github.com/gaemo12/ModAnalyzer/issues/new';
     J.reportBug = function () {
         const tpl = 'ModScanOpen v' + J.version + ' - bug report\nSO: ' + (navigator.platform || '?')

@@ -69,6 +69,15 @@ Output:
 Scarica la versione già buildata dalle **[Release](../../releases)**:
 `ModScanOpen.zip` → scompatta → avvia `ModScanOpen.exe`.
 
+## Rilevamento (v1.4.0)
+
+- Memory-dump opt-in (`scan --mem <pid|auto>`): nuovo modulo `memagent`
+  (`MemAgent.jar`, osservatore puro con `premain`/`agentmain`, ritorna sempre
+  `null`) agganciato via Attach API; il dump viene impacchettato e analizzato
+  dal motore esistente. Mai esecuzione di codice del bersaglio. Nota: su JDK
+  futuri il target potrebbe richiedere `-XX:+EnableDynamicAgentLoading`.
+- Packaging: `MemAgent.jar` incluso nello stage + modulo `jdk.attach` nel runtime.
+
 ## Rilevamento (v1.3.0)
 
 - Pulsante "Segnala bug" nell'header: copia un template diagnostico e apre

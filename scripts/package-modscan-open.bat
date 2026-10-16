@@ -20,13 +20,14 @@ if errorlevel 1 (
 )
 
 echo 1/5 Compilo modscan-open...
-call %MVN% -q -DskipTests package -pl common,scanners,modscan-open -am
+call %MVN% -q -DskipTests package -pl common,scanners,memagent,modscan-open -am
 if errorlevel 1 ( echo Compilazione fallita. & exit /b 1 )
 if not exist modscan-open\target\ModScanOpen.jar ( echo Jar mancante. & exit /b 1 )
+if not exist memagent\target\MemAgent.jar ( echo Agent mancante. & exit /b 1 )
 
 echo 2/5 Runtime Java (jlink)...
 if exist "%DIST%\_msruntime" rmdir /s /q "%DIST%\_msruntime"
-"%JDIR%\bin\jlink.exe" --add-modules java.base,java.desktop,java.logging,java.management,java.naming,java.net.http,java.sql,java.xml,jdk.unsupported,jdk.crypto.ec,jdk.crypto.cryptoki,jdk.jsobject,jdk.xml.dom,jdk.zipfs --strip-debug --no-header-files --no-man-pages --compress zip-6 --output "%DIST%\_msruntime"
+"%JDIR%\bin\jlink.exe" --add-modules java.base,java.desktop,java.logging,java.management,java.naming,java.net.http,java.sql,java.xml,jdk.attach,jdk.unsupported,jdk.crypto.ec,jdk.crypto.cryptoki,jdk.jsobject,jdk.xml.dom,jdk.zipfs --strip-debug --no-header-files --no-man-pages --compress zip-6 --output "%DIST%\_msruntime"
 if errorlevel 1 ( echo jlink fallito. & exit /b 1 )
 
 echo 3/5 Preparo lo stage (jar + lib + javafx distinti, license-core escluso)...
@@ -34,6 +35,7 @@ set "STAGE=%DIST%\_msstage"
 if exist "%STAGE%" rmdir /s /q "%STAGE%"
 mkdir "%STAGE%" "%STAGE%\javafx"
 copy /Y modscan-open\target\ModScanOpen.jar "%STAGE%\" >nul
+copy /Y memagent\target\MemAgent.jar "%STAGE%\" >nul
 xcopy /E /I /Y modscan-open\target\lib "%STAGE%\lib" >nul
 rem Nota: javafx-media NON è escludibile — javafx.web lo richiede al boot layer. Resta nel pacchetto.
 rem license-core è una dipendenza transitiva di common ma l'edizione open non usa la verifica di licenza: escluso.

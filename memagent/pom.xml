@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.jaranalyzer</groupId>
+        <artifactId>modanalyzer-parent</artifactId>
+        <version>1.4.0</version>
+    </parent>
+
+    <artifactId>memagent</artifactId>
+    <name>memagent</name>
+    <description>Java agent per memory-dump opt-in: osservatore puro, non modifica il bytecode.</description>
+
+    <!-- Solo JDK (java.instrument e' nel JDK): nessuna dipendenza. -->
+
+    <build>
+        <finalName>MemAgent</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.5.0</version>
+                <configuration>
+                    <archive>
+                        <manifestEntries>
+                            <Premain-Class>com.jaranalyzer.memagent.MemAgent</Premain-Class>
+                            <Agent-Class>com.jaranalyzer.memagent.MemAgent</Agent-Class>
+                            <Can-Redefine-Classes>false</Can-Redefine-Classes>
+                            <Can-Retransform-Classes>true</Can-Retransform-Classes>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

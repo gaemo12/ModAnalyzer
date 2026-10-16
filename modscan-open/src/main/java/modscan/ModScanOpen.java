@@ -78,15 +78,18 @@ public final class ModScanOpen {
             if (opt.containsKey("mods")) {
                 String v = opt.get("mods");
                 mods = "auto".equalsIgnoreCase(v) ? locate() : Path.of(v);
-            } else if (jar == null) {
+            } else if (jar == null && !opt.containsKey("mem")) {
                 mods = locate();
             }
-            if (jar == null && mods == null) {
-                System.err.println("Nessun bersaglio: specificare --jar <file> o --mods <dir|auto>.");
+            if (jar == null && mods == null && !opt.containsKey("mem")) {
+                System.err.println("Nessun bersaglio: specificare --jar <file>, --mods <dir|auto> o --mem <pid|auto>.");
                 return 1;
             }
             boolean modsFirst = opt.containsKey("mods-first");
             List<Map<String, Object>> results = new ArrayList<>();
+            if (opt.containsKey("mem")) {
+                runMem(opt.get("mem"), opt.get("mem-out"), results);
+            }
             if (modsFirst) {
                 runMods(mods, results);
                 runJar(jar, results);
@@ -96,7 +99,7 @@ public final class ModScanOpen {
             }
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("tool", "ModScanOpen");
-            out.put("version", "1.3.0");
+            out.put("version", "1.4.0");
             out.put("openSource", true);
             out.put("results", results);
             String json = JsonCodec.write(out);
@@ -160,6 +163,52 @@ public final class ModScanOpen {
             }
             System.err.println("scan mods_folder …");
             results.add(r);
+        }
+
+        static void runMem(String spec, String memOut, List<Map<String, Object>> results) {
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("module", "mem_dump");
+            r.put("source", "memory");
+            try {
+                String pid = MemDump.resolvePid(spec == null || spec.isBlank() ? "auto" : spec);
+                r.put("pid", pid);
+                Path workDir = memOut == null || memOut.isBlank()
+                        ? Path.of(System.getProperty("java.io.tmpdir", "."), "modscan-mem")
+                        : Path.of(memOut);
+                Path packed = MemDump.capture(pid, agentJar(), workDir);
+                ModuleResult mr = run("single_jar", new ScanContext.JarFileContext(packed));
+                r.put("success", mr.success());
+                r.put("durationMillis", mr.durationMillis());
+                r.put("counters", mr.counters());
+                r.put("findings", jsonFindings(mr));
+                r.put("file", Sanitizer.fileName(packed));
+                if (mr.error() != null) {
+                    r.put("error", mr.error());
+                }
+            } catch (Exception e) {
+                r.put("success", false);
+                r.put("error", message(e));
+            }
+            System.err.println("scan mem_dump …");
+            results.add(r);
+        }
+
+        /** Jar dell'agent: proprietà modscan.agent, poi a fianco del nostro jar, poi target di sviluppo. */
+        static Path agentJar() {
+            String prop = System.getProperty("modscan.agent");
+            if (prop != null && !prop.isBlank()) {
+                return Path.of(prop);
+            }
+            try {
+                Path own = Path.of(ModScanOpen.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+                Path nextTo = (Files.isDirectory(own) ? own : own.getParent()).resolve("MemAgent.jar");
+                if (Files.isRegularFile(nextTo)) {
+                    return nextTo;
+                }
+            } catch (Exception ignored) {
+                // si passa al fallback di sviluppo
+            }
+            return Path.of("memagent", "target", "MemAgent.jar");
         }
 
     /** Rappresentazione JSON dei finding (JsonCodec non serializza POI provider). */
@@ -260,11 +309,12 @@ public final class ModScanOpen {
         }
 
         static void usage() {
-            System.out.println("ModScanOpen 1.3.0 — scansioni mod, open source (MIT), offline\n"
+            System.out.println("ModScanOpen 1.4.0 — scansioni mod, open source (MIT), offline\n"
                     + "\n"
                     + "  scan --jar <file.jar>              analizza un file .jar\n"
                     + "  scan --mods <cartella|auto>        analizza tutta la cartella delle mod (auto: dal processo javaw)\n"
                     + "  scan --jar <f> --mods <d> --mods-first   entrambe le scansioni\n"
+                    + "  scan --mem <pid|auto> [--mem-out <dir>]  dump bytecode da JVM e scansione (opt-in)\n"
                     + "      [--out file.json]              salva l'esito JSON su file\n");
             System.out.println("Esempi:");
             System.out.println("  java -jar ModScanOpen.jar scan --jar UnSospetto.jar");
