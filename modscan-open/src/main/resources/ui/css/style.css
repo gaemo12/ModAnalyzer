@@ -123,7 +123,10 @@ h1{font-size:clamp(34px,5vw,60px);line-height:1;letter-spacing:-.045em;margin:0 
 .split{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:18px;align-items:start}
 .tb{display:flex;gap:10px;padding:16px 18px;border-bottom:1px solid var(--line);align-items:center}
 .search{flex:1;display:flex;align-items:center;gap:9px;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:0 12px;color:var(--mut)}
-.search:focus-within{border-color:var(--acc)}.search input{flex:1;min-width:0;background:none;border:0;color:var(--ink);font:inherit;padding:9px 0;outline:0}
+.search:focus-within{border-color:var(--acc)}.search input{flex:1;min-width:0;background:none;background-color:transparent;border:0;color:var(--ink);font:inherit;padding:9px 0;outline:0;-webkit-appearance:none;appearance:none;border-radius:0}
+.search input::placeholder{color:var(--mut);opacity:.8}
+.search input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none;width:14px;height:14px;background:var(--mut);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M2 2l10 10M12 2L2 12' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M2 2l10 10M12 2L2 12' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat;cursor:pointer}
+.search input::-webkit-search-decoration,.search input::-webkit-search-results-button,.search input::-webkit-search-results-decoration{display:none}
 .prow{display:grid;grid-template-columns:40px 1fr 74px 66px;gap:12px;align-items:center;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:13px 18px;position:relative;contain:content;transition:background .2s}
 .prow:hover{background:var(--panel2)}.prow[aria-selected="true"]{background:linear-gradient(90deg,rgba(138,164,255,.13),transparent)}
 .prow[aria-selected="true"]::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:3px;background:var(--acc)}
