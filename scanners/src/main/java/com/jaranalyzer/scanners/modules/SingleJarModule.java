@@ -11,6 +11,7 @@ import com.jaranalyzer.scanners.Severity;
 import com.jaranalyzer.scanners.Category;
 import com.jaranalyzer.scanners.Finding;
 import com.jaranalyzer.scanners.SignatureSet;
+import com.jaranalyzer.scanners.engine.ArchiveIntegrityAnalyzer;
 import com.jaranalyzer.scanners.engine.BytecodeAnalyzer;
 import com.jaranalyzer.scanners.engine.CheatAnalyzer;
 import com.jaranalyzer.scanners.engine.CheatSignatureAnalyzer;
@@ -19,6 +20,7 @@ import com.jaranalyzer.scanners.engine.EntropyAnalyzer;
 import com.jaranalyzer.scanners.engine.ExfiltrationAnalyzer;
 import com.jaranalyzer.scanners.engine.Hashing;
 import com.jaranalyzer.scanners.engine.InjectionAnalyzer;
+import com.jaranalyzer.scanners.engine.IocRuleAnalyzer;
 import com.jaranalyzer.scanners.engine.JarAnalyzer;
 import com.jaranalyzer.scanners.engine.JavawAnalyzer;
 import com.jaranalyzer.scanners.engine.ManifestAnalyzer;
@@ -200,6 +202,8 @@ public final class SingleJarModule implements ScanModule {
         out.add(new ExfiltrationAnalyzer());
         out.add(new ProcessInjectionAnalyzer());
         out.add(new CheatSignatureAnalyzer(signatures));
+        out.add(new IocRuleAnalyzer());
+        out.add(new ArchiveIntegrityAnalyzer());
         return out;
     }
 

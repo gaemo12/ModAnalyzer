@@ -69,6 +69,19 @@ Output:
 Scarica la versione già buildata dalle **[Release](../../releases)**:
 `ModScanOpen.zip` → scompatta → avvia `ModScanOpen.exe`.
 
+## Rilevamento (v1.2.0)
+
+- Motore a regole IOC sul constant pool (`rules/ioc-rules.json`, dati non codice):
+  webhook Discord con token, token Telegram/Discord, endpoint paste raw,
+  PowerShell codificata, LOLBin, chiavi di persistenza, blob Base64 che
+  decodificano in eseguibili. Ambiti rigidi (costanti di codice e risorse,
+  mai metadati) e segreti sempre redatti nei report.
+- Integrità archivio: zip-slip, dati accodati/preposti, nomi duplicati o in
+  collisione di case, local/central header discordi, magia contro estensione.
+- Punteggio: deduplica su regola+categoria+severità+titolo (prima tre HIGH
+  diversi con `rule="unspecified"` contavano come uno solo).
+- Self-test eseguibili: `scripts/run-selftests.bat` (22 controlli).
+
 ## Rilevamento (v1.1.0)
 
 - Anti-evasione stringhe: match case-insensitive, ricomposizione `LDC` spezzate,

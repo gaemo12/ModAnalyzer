@@ -1,0 +1,116 @@
+{
+  "comment": "Regole IOC v1 (report revisione, sez. 1). Ambiti: CLASS_CONST = LDC, CLASS_POOL = intero constant pool, RESOURCE_TEXT = risorse eseguibili/config. METADATA mai: README/licenze/mods.toml/fabric.mod.json non generano finding.",
+  "rules": [
+    {
+      "id": "discord-webhook",
+      "title": "Webhook Discord con token",
+      "scopes": ["CLASS_CONST", "CLASS_POOL", "RESOURCE_TEXT"],
+      "pattern": "https://(?:ptb\\.|canary\\.)?discord(?:app)?\\.com/api/webhooks/\\d{17,20}/[\\w-]{60,}",
+      "severity": "HIGH",
+      "category": "NETWORK",
+      "cap": "STRONG",
+      "description": "URL webhook Discord completo di token: endpoint di esfiltrazione pronto all'uso. Il solo dominio non basta, qui c'e' il segreto.",
+      "redact": true
+    },
+    {
+      "id": "telegram-bot-token",
+      "title": "Token bot Telegram",
+      "scopes": ["CLASS_CONST", "CLASS_POOL"],
+      "pattern": "\\b\\d{8,10}:[A-Za-z0-9_-]{35}\\b",
+      "severity": "MEDIUM",
+      "category": "NETWORK",
+      "cap": "MEDIUM",
+      "description": "Token bot Telegram: medio da solo, forte se combinato con invio in rete.",
+      "redact": true
+    },
+    {
+      "id": "discord-token-classic",
+      "title": "Token utente Discord",
+      "scopes": ["CLASS_CONST", "CLASS_POOL"],
+      "pattern": "[\\w-]{24}\\.[\\w-]{6}\\.[\\w-]{27,38}",
+      "severity": "MEDIUM",
+      "category": "NETWORK",
+      "cap": "MEDIUM",
+      "description": "Possibile token utente Discord: forte con path di browser/leveldb nella stessa catena.",
+      "redact": true
+    },
+    {
+      "id": "discord-token-mfa",
+      "title": "Token Discord MFA",
+      "scopes": ["CLASS_CONST", "CLASS_POOL"],
+      "pattern": "mfa\\.[\\w-]{84}",
+      "severity": "MEDIUM",
+      "category": "NETWORK",
+      "cap": "MEDIUM",
+      "description": "Token Discord MFA.",
+      "redact": true
+    },
+    {
+      "id": "paste-raw-endpoint",
+      "title": "Endpoint paste di staging",
+      "scopes": ["CLASS_CONST", "CLASS_POOL", "RESOURCE_TEXT"],
+      "pattern": "(?:pastebin\\.com/raw/|hastebin\\.com/raw/|paste\\.ee/r/|rentry\\.co/\\w+/raw/|paste\\.rs/|ix\\.io/)",
+      "severity": "MEDIUM",
+      "category": "NETWORK",
+      "cap": "MEDIUM",
+      "description": "Endpoint raw di servizi paste: usati per lo staging di payload, piu' specifici del dominio.",
+      "redact": false
+    },
+    {
+      "id": "powershell-encoded",
+      "title": "PowerShell con comando codificato",
+      "scopes": ["CLASS_CONST", "CLASS_POOL", "RESOURCE_TEXT"],
+      "pattern": "(?i)powershell(?:\\.exe)?[^;\\n&|]{0,300}-(?:e(?:nc(?:odedcommand)?)?)\\b",
+      "severity": "HIGH",
+      "category": "EXECUTION",
+      "cap": "STRONG",
+      "description": "PowerShell con -EncodedCommand: esecuzione offuscata, solo in costanti di codice o script.",
+      "redact": false
+    },
+    {
+      "id": "powershell-suspicious",
+      "title": "PowerShell sospetto (download/policy)",
+      "scopes": ["CLASS_CONST", "CLASS_POOL", "RESOURCE_TEXT"],
+      "pattern": "(?i)(?:-ExecutionPolicy\\s+Bypass|-WindowStyle\\s+Hidden|DownloadString|DownloadFile|Invoke-Expression|IEX\\s*\\()",
+      "severity": "MEDIUM",
+      "category": "EXECUTION",
+      "cap": "MEDIUM",
+      "description": "Costrutti PowerShell tipici di downloader: deboli da soli, forti con rete+exec.",
+      "redact": false
+    },
+    {
+      "id": "lolbin-download",
+      "title": "LOLBin per download/esecuzione",
+      "scopes": ["CLASS_CONST", "CLASS_POOL", "RESOURCE_TEXT"],
+      "pattern": "(?i)(?:\\bcertutil\\b[^;\\n&|]{0,200}-urlcache|\\bbitsadmin\\b[^;\\n&|]{0,200}/transfer|\\bmshta\\b\\s|\\bregsvr32\\b\\s+/s)",
+      "severity": "HIGH",
+      "category": "EXECUTION",
+      "cap": "STRONG",
+      "description": "Binari Windows legittimi usati per scaricare/eseguire codice (LOLBin), solo in costanti o script.",
+      "redact": false
+    },
+    {
+      "id": "persistence-autostart",
+      "title": "Chiave di persistenza Windows",
+      "scopes": ["CLASS_CONST", "CLASS_POOL", "RESOURCE_TEXT"],
+      "pattern": "(?i)(?:CurrentVersion\\\\Run|Start Menu\\\\Programs\\\\Startup|\\\\Startup\\\\|schtasks\\s+/create|HKCU\\\\.*\\\\Run)",
+      "severity": "MEDIUM",
+      "category": "EXECUTION",
+      "cap": "MEDIUM",
+      "description": "Riferimento a meccanismi di avvio automatico: medio da solo, richiede scrittura/exec per pesare.",
+      "redact": false
+    },
+    {
+      "id": "base64-blob",
+      "title": "Blob Base64 che decodifica in eseguibile",
+      "scopes": ["CLASS_CONST", "CLASS_POOL"],
+      "pattern": "[A-Za-z0-9+/]{200,}={0,2}",
+      "severity": "HIGH",
+      "category": "MALWARE_BEHAVIOR",
+      "cap": "STRONG",
+      "description": "Blob Base64 lungo che decodifica in un eseguibile (MZ/ELF/PK/CAFEBABE): payload nascosto. La regex e' solo il candidato, la magia decide.",
+      "redact": true,
+      "special": "executable-blob"
+    }
+  ]
+}

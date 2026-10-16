@@ -157,15 +157,19 @@ final class OpenAnalysis {
         Set<String> seen = new HashSet<>();
         // Peso evidenza per categoria (Fase 5): firme/rete valgono più di
         // euristici e metadati strutturali a parità di severity.
+        // P0-1 (rev. ott-2026): la chiave include categoria e titolo, perché
+        // quasi tutti i finding storici hanno rule="unspecified" e con la sola
+        // coppia rule|severity tre HIGH diversi contavano come uno solo.
         int base = 0;
         int bonus = 0;
         for (Map<String, Object> f : findings) {
             String rule = String.valueOf(f.get("rule"));
             String sev = String.valueOf(f.get("severity")).toUpperCase(Locale.ROOT);
-            if (!seen.add(rule + "|" + sev)) {
+            String cat = String.valueOf(f.getOrDefault("category", "")).toUpperCase(Locale.ROOT);
+            String title = String.valueOf(f.getOrDefault("title", ""));
+            if (!seen.add(rule + "|" + cat + "|" + sev + "|" + title)) {
                 continue;
             }
-            String cat = String.valueOf(f.getOrDefault("category", "")).toUpperCase(Locale.ROOT);
             int w = categoryWeight(cat);
             switch (sev) {
                 case "CRITICAL": base = Math.max(base, 65); bonus += 8 * w; break;
