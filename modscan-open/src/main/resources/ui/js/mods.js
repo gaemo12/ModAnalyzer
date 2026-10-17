@@ -205,7 +205,7 @@
         $('btn-mods-scan').disabled = false;
         busy = false;
         if (c.bad) J.toast(c.bad + ' mod sospette trovate', 'error'); else J.toast('Cartella scansionata');
-        /* v1.7.0: journal e dump di memoria partono da soli; gli esiti compaiono in questa lista. */
+        /* v1.2.0: journal e dump di memoria partono da soli; gli esiti compaiono in questa lista. */
         if (J.journal && J.journal.auto) J.journal.auto();
     }
 

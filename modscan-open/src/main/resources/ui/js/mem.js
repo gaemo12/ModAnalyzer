@@ -1,5 +1,5 @@
 /* Modalita "Memoria JVM": memory-dump opt-in via agent e scansione del dump.
-   v1.7.0: il dump salta le mod verificate su Modrinth/Megabase (e i loro jar annidati),
+   v1.2.0: il dump salta le mod verificate su Modrinth/Megabase (e i loro jar annidati),
    le librerie del launcher e l'agent theseus; l'avanzamento reale si vede nella card;
    dopo la scansione della cartella l'analisi parte da sola e gli esiti compaiono
    come badge nella lista delle mod. Riaprire la sezione non rifà il dump. */
@@ -185,7 +185,7 @@
             }));
     }
 
-    /* v1.7.0: avvio automatico (dopo la scansione della cartella e il journal).
+    /* v1.2.0: avvio automatico (dopo la scansione della cartella e il journal).
        Se un dump è già in corso ci si aggancia al suo progresso; se questa sessione
        di gioco ha già un risultato, il server risponde dalla cache senza rifare nulla. */
     async function auto(pidArg) {

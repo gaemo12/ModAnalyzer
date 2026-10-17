@@ -69,7 +69,12 @@ Output:
 Scarica la versione già buildata dalle **[Release](../../releases)**:
 `ModScanOpen.zip` → scompatta → avvia `ModScanOpen.exe`.
 
-## Rilevamento (v1.7.0)
+## Rilevamento (v1.2.0)
+
+Questa release raggruppa tutto il lavoro successivo alla v1.1.0: dump mirato e
+automatico, integrità delle mod, scoping del dump e antifalsi-positivi.
+
+### Dump mirato e avvio automatico
 
 - **Dump mirato: le mod verificate non si dumpano**: l'agent salta (né
   ritrasforma né scrive) le classi delle mod VERIFIED su Modrinth/Megabase, i
@@ -93,7 +98,7 @@ Scarica la versione già buildata dalle **[Release](../../releases)**:
   debole; la rete nascosta ha una regola dedicata). Fix pacchetto:
   `js/journal.js` mancava dalla lista delle risorse copiate nella WebView.
 
-## Rilevamento (v1.6.0)
+### Integrità mod e scoping del dump
 
 - **Integrità mod dopo l'avvio di Minecraft**: nuova card nella sezione Mods
   (`GET /api/mods/journal`, CLI `journal`). Confronta creazione/modifica dei
@@ -111,7 +116,7 @@ Scarica la versione già buildata dalle **[Release](../../releases)**:
 - **Reattività**: thread degli analyzer a priorità ridotta durante la scansione
   (la GUI non perde reattività sui dump grandi).
 
-## Rilevamento (v1.5.3)
+### Antifalsi-positivi CRITICAL e process picker
 
 - 4 falsi positivi CRITICAL eliminati alla fonte (verificati sul dump IntelliJ,
   8→3): package ransomware solo su segmenti (`Decrypter` Maven non matcha più
@@ -120,21 +125,21 @@ Scarica la versione già buildata dalle **[Release](../../releases)**:
 - Process picker: `GET /api/mem/processes` + select nella card Memoria (niente
   più auto cieco sul primo java).
 
-## Rilevamento (v1.5.2)
+### Meno falsi positivi e attribuzione delle origini
 
 - Meno falsi positivi sui dump: classi JDK scartate al pack (bootstrap/jrt +
   package `java/javax/jdk/sun/com.sun`); sulla vittima demo da 218 a 11 finding.
 - Attribuzione origine: l'agent scrive `origins.txt` (CodeSource per classe),
   ogni finding ha campo `origin` e suffisso in location col jar di provenienza.
 
-## Rilevamento (v1.5.1)
+### Memory-dump nella sezione Mods
 
 - Memory-dump spostato nella sezione Mods (niente terza tab): card dedicata
   con PID/auto, steps, verdetto, priorità, rilevamenti e mappa classi.
 - Fix causa radice mappa assente: `J.fmtUptime` mancava e faceva fallire il
   render del verdetto processo (`report.js:122`).
 
-## Rilevamento (v1.5.0)
+### Memory-dump in GUI
 
 - Memory-dump anche in GUI: terza modalità "Memoria" (PID o auto, endpoint
   `POST /api/mem/dump`, vista processo con `processInfo`), riuso del renderer
@@ -142,7 +147,7 @@ Scarica la versione già buildata dalle **[Release](../../releases)**:
 - Fix bug reale: NPE in `InjectionAnalyzer` su `superName` null
   (`java/lang/Object` e interfacce) — falliva su ogni dump e su molti jar reali.
 
-## Rilevamento (v1.4.0)
+### Memory-dump opt-in (memagent)
 
 - Memory-dump opt-in (`scan --mem <pid|auto>`): nuovo modulo `memagent`
   (`MemAgent.jar`, osservatore puro con `premain`/`agentmain`, ritorna sempre
@@ -151,7 +156,7 @@ Scarica la versione già buildata dalle **[Release](../../releases)**:
   futuri il target potrebbe richiedere `-XX:+EnableDynamicAgentLoading`.
 - Packaging: `MemAgent.jar` incluso nello stage + modulo `jdk.attach` nel runtime.
 
-## Rilevamento (v1.3.0)
+### Segnala bug e badge versione
 
 - Pulsante "Segnala bug" nell'header: copia un template diagnostico e apre
   le issue GitHub nel browser (`MsBridge.openIssues`, la WebView non naviga).
@@ -159,7 +164,7 @@ Scarica la versione già buildata dalle **[Release](../../releases)**:
 - Nota di attribuzione su `QUICK_FLAG_PREFIXES` (sovrapposizione con lo
   script Meow: da verificare prima di estenderla).
 
-## Rilevamento (v1.2.0)
+### Motore a regole IOC e integrità archivio
 
 - Motore a regole IOC sul constant pool (`rules/ioc-rules.json`, dati non codice):
   webhook Discord con token, token Telegram/Discord, endpoint paste raw,

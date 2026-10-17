@@ -19,7 +19,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 
 /**
- * Costruisce la "skip list" per il memory-dump (v1.7.0): le classi delle
+ * Costruisce la "skip list" per il memory-dump (v1.2.0): le classi delle
  * <b>mod verificate</b> su Modrinth/Megabase, i loro jar annidati estratti da
  * Fabric in {@code .fabric/processedMods}, le <b>librerie del launcher</b>
  * ({@code meta/libraries}) e l'agent del launcher Modrinth ({@code theseus.jar})

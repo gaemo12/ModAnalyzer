@@ -6,7 +6,7 @@ import java.util.jar.JarFile;
 /**
  * Self-test di memagent (stile progetto, zero dipendenze di test):
  * manifest + auto-attach al proprio PID + dump verificato.
- * v1.7.0: verifica anche la skip-list (skip.txt): le classi JDK e le origini
+ * v1.2.0: verifica anche la skip-list (skip.txt): le classi JDK e le origini
  * indicate non devono essere né ri-trasformate né dumpate.
  * Uso: MemAgentSelfTest <memagent-target-MemAgent.jar>
  */

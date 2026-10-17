@@ -1,6 +1,6 @@
 /* Integrità mod: una mod è stata aggiunta o modificata dopo l'avvio di Minecraft (javaw)?
    Usa la cartella mods corrente (o la rileva dal processo) e, su richiesta, il journal USN di NTFS.
-   v1.7.0: il controllo parte da solo dopo la scansione della cartella e gli esiti compaiono
+   v1.2.0: il controllo parte da solo dopo la scansione della cartella e gli esiti compaiono
    come badge nella lista delle mod (oltre che nella card). */
 (function () {
     'use strict';
@@ -107,7 +107,7 @@
         }
     }
 
-    /* v1.7.0: avvio automatico e silenzioso dopo la scansione della cartella;
+    /* v1.2.0: avvio automatico e silenzioso dopo la scansione della cartella;
        se il gioco è in esecuzione il pid va all'auto-dump della memoria. */
     async function auto() {
         if (busy) return;

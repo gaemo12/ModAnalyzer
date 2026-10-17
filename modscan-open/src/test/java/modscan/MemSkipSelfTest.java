@@ -12,7 +12,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 /**
- * Self-test di MemSkip (v1.7.0, stile progetto: main(), zero dipendenze):
+ * Self-test di MemSkip (v1.2.0, stile progetto: main(), zero dipendenze):
  * la skip-list del memory-dump deve contenere la mod verificata e il suo jar
  * annidato processato da Fabric, e NON deve contenere le mod non verificate
  * né i jar processati non collegati.
