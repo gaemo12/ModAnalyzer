@@ -19,6 +19,9 @@
         $('btn-mods-scan').disabled = !p;
     }
 
+    /* La card "Integrità mod" (journal.js) controlla la stessa cartella. */
+    J.modsPath = () => path;
+
     async function locate(auto) {
         const btn = $('btn-mods-locate');
         btn.disabled = true;

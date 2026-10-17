@@ -34,7 +34,7 @@
 <header>
   <div class="brand"><svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle class="pr" cx="20" cy="20" r="17" stroke="#8aa4ff" stroke-width="1.5"/><rect x="3" y="3" width="34" height="34" rx="10" fill="#171513" stroke="#3d3733"/><path d="M11.5 20.5l6 6 11-12.5" stroke="#8aa4ff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg><b>ModScanOpen</b></div>
   <nav class="tabs" id="tabs" aria-label="Modalità di scansione"><div class="thumb" id="thumb"></div></nav>
-  <div class="right"><button class="btn sec sm" id="btn-bug" type="button"><svg class="ic"><use href="#i-bug"/></svg>Segnala bug</button><span class="chip" id="version-badge">v1.3.0</span></div>
+  <div class="right"><button class="btn sec sm" id="btn-bug" type="button"><svg class="ic"><use href="#i-bug"/></svg>Segnala bug</button><span class="chip" id="version-badge">v1.6.0</span></div>
 </header>
 
 <main>
@@ -81,6 +81,16 @@
       <div class="ph" id="mods-ph" style="margin:10px 22px 0">Pronta per la scansione</div>
       <div class="msum"><div><b id="ms0">–</b>file totali</div><div><b id="ms1">–</b>verificate</div><div><b id="ms2">–</b>non verificate</div><div><b id="ms3">–</b>sospette</div><div class="bar" id="mbar"><span class="g"></span><span class="m"></span><span class="c"></span></div></div>
     </div>
+    <div class="card" style="margin-top:18px" aria-label="Integrità mod">
+      <div class="mfold">
+        <div class="path"><span class="pic"><svg class="ic" style="width:22px;height:22px"><use href="#i-shield"/></svg></span>
+          <div><code id="jrnl-game">Nessun controllo eseguito</code><small id="jrnl-note">Verifica se una mod è stata aggiunta o modificata dopo l'avvio di Minecraft (javaw): orari dei file e, se richiesto, journal NTFS.</small></div></div>
+        <div class="row"><label class="search" style="max-width:280px;cursor:pointer" title="fsutil usn readjournal richiede privilegi di amministratore"><input type="checkbox" id="jrnl-usn" style="margin:0 8px 0 2px">Journal USN (serve admin)</label>
+          <button class="btn" id="btn-jrnl" type="button"><svg class="ic"><use href="#i-shield"/></svg>Controlla integrità</button></div>
+      </div>
+      <div class="ph" id="jrnl-ph" style="margin:10px 22px 0">Pronto — usa la cartella mods corrente o la rileva da javaw</div>
+      <div id="jrnl-out"></div>
+    </div>
     <div class="card" style="margin-top:18px" aria-label="Memory dump">
       <div class="mfold">
         <div class="path"><span class="pic"><svg class="ic" style="width:22px;height:22px"><use href="#i-cpu"/></svg></span>
@@ -113,6 +123,7 @@
 <script src="js/report.js"></script>
 <script src="js/jar.js"></script>
 <script src="js/mods.js"></script>
+<script src="js/journal.js"></script>
 <script src="js/mem.js"></script>
 <script src="js/save-file.js"></script>
 </body>

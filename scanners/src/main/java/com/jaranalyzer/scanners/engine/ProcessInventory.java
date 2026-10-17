@@ -19,7 +19,7 @@ public final class ProcessInventory {
     };
 
     public record ProcInfo(long pid, String executable, String commandLine,
-            boolean java, boolean minecraftLike, boolean detailsAvailable) {
+            boolean java, boolean minecraftLike, boolean detailsAvailable, long startEpochMillis) {
     }
 
     private ProcessInventory() {
@@ -59,7 +59,13 @@ public final class ProcessInventory {
         String exe = executableName(command);
         boolean java = isJava(exe, cmdline);
         boolean mc = isMinecraftLike(cmdline);
-        return new ProcInfo(pid, exe, cmdline, java, mc, !cmdline.isEmpty());
+        long startMillis = 0L;
+        try {
+            startMillis = info.startInstant().map(i -> i.toEpochMilli()).orElse(0L);
+        } catch (Exception ignored) {
+            // processo protetto: start time non disponibile
+        }
+        return new ProcInfo(pid, exe, cmdline, java, mc, !cmdline.isEmpty(), startMillis);
     }
 
     public static String executableName(String command) {

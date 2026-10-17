@@ -14,6 +14,8 @@ import java.util.Map;
  *   <li>{@code POST /api/analyze-local} — analisi completa (motore locale) di un file .jar per percorso</li>
  *   <li>{@code GET /api/mods/folder?path=…} — elenco e stato delle mod di una cartella (nessun servizio esterno)</li>
  *   <li>{@code GET /api/mods/locate} — ricerca della cartella mods tra i processi javaw attivi</li>
+ *   <li>{@code GET /api/mods/journal?path=…&pid=…&after=…&usn=1} — mod aggiunte o
+ *   modificate dopo l'avvio di Minecraft (orari dei file + journal USN best-effort)</li>
  *   <li>{@code GET /api/health} — controllo che il bridge risponda</li>
  *   <li>{@code POST /api/mem/dump} — memory-dump opt-in (pid=…|auto): dump del
  *   bytecode via agent, analisi col motore locale</li>
@@ -61,6 +63,9 @@ public final class OpenApi {
                     return OpenMods.folder(params.get("path"));
                 case "GET /api/mods/locate":
                     return OpenMods.locate();
+                case "GET /api/mods/journal":
+                    return OpenJournal.check(params.get("path"), params.get("pid"),
+                            params.get("after"), params.get("usn"));
                 case "GET /api/mem/processes":
                     return memProcesses();
                 case "POST /api/mem/dump":
@@ -131,12 +136,15 @@ public final class OpenApi {
             Object fo = body.get("findings");
             if (fo instanceof java.util.List) {
                 Map<String, String> origins = MemDump.readOrigins(workDir.resolve("classes-" + pid));
-                for (Object o : (java.util.List<?>) fo) {
-                    if (o instanceof Map) {
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> fm = (Map<String, Object>) o;
-                        MemDump.attachOrigin(fm, origins);
-                    }
+                @SuppressWarnings("unchecked")
+                java.util.List<Map<String, Object>> findings = (java.util.List<Map<String, Object>>) fo;
+                // Scoping per origine (gioco/librerie/mod) + "bypassed", poi il
+                // punteggio va ricalcolato sul rumore già soppresso.
+                body.put("memoryScope", MemScope.apply(packed, findings, origins));
+                body.put("riskScore", OpenAnalysis.riskScore(findings));
+                body.put("riskLevel", OpenAnalysis.riskLevel(OpenAnalysis.riskScore(findings), findings));
+                for (Map<String, Object> fm : findings) {
+                    MemDump.attachOrigin(fm, origins);
                 }
             }
             body.put("kind", "mem");

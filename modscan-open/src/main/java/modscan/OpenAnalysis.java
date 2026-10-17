@@ -86,7 +86,7 @@ final class OpenAnalysis {
                 downgraded = downgradeHeuristics(findings);
             }
             int riskScore = riskScore(findings);
-            String riskLevel = riskLevel(riskScore);
+            String riskLevel = riskLevel(riskScore, findings);
 
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("kind", "jar");
@@ -193,6 +193,40 @@ final class OpenAnalysis {
     }
 
     static String riskLevel(int score) {
+        return riskLevel(score, null);
+    }
+
+    /**
+     * Livello di rischio dal punteggio, con un tetto di buon senso: il verdetto
+     * non può superare il peso della prova più forte presente. Senza finding
+     * CRITICAL non si dice "CRITICO" (molti indizi sommati non equivalgono a
+     * un'evidenza grave); senza HIGH non si va oltre MEDIO. Evita i "CRITICO
+     * 100" con zero prove forti, che rendono il report poco credibile.
+     */
+    static String riskLevel(int score, List<Map<String, Object>> findings) {
+        String level = riskLevelByScore(score);
+        if (findings != null) {
+            boolean hasCritical = false;
+            boolean hasHigh = false;
+            for (Map<String, Object> f : findings) {
+                String sev = String.valueOf(f.get("severity")).toUpperCase(Locale.ROOT);
+                if ("CRITICAL".equals(sev)) {
+                    hasCritical = true;
+                } else if ("HIGH".equals(sev)) {
+                    hasHigh = true;
+                }
+            }
+            if (!hasCritical && "CRITICAL".equals(level)) {
+                level = "HIGH";
+            }
+            if (!hasCritical && !hasHigh && "HIGH".equals(level)) {
+                level = "MEDIUM";
+            }
+        }
+        return level;
+    }
+
+    private static String riskLevelByScore(int score) {
         if (score <= 10) return "SAFE";
         if (score <= 30) return "LOW";
         if (score <= 50) return "MEDIUM";

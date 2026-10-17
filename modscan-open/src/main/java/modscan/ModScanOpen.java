@@ -68,6 +68,9 @@ public final class ModScanOpen {
             }
             String cmd = args[0];
             Map<String, String> opt = options(args);
+            if (cmd.equals("journal")) {
+                return runJournal(opt);
+            }
             if (!cmd.equals("scan")) {
                 System.err.println("Comando sconosciuto: " + cmd);
                 usage();
@@ -99,7 +102,7 @@ public final class ModScanOpen {
             }
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("tool", "ModScanOpen");
-            out.put("version", "1.5.3");
+            out.put("version", "1.6.0");
             out.put("openSource", true);
             out.put("results", results);
             String json = JsonCodec.write(out);
@@ -182,6 +185,7 @@ public final class ModScanOpen {
                 r.put("counters", mr.counters());
                 List<Map<String, Object>> fj = jsonFindings(mr);
                 Map<String, String> origins = MemDump.readOrigins(workDir.resolve("classes-" + pid));
+                r.put("memoryScope", MemScope.apply(packed, fj, origins));
                 for (Map<String, Object> f : fj) {
                     MemDump.attachOrigin(f, origins);
                 }
@@ -196,6 +200,27 @@ public final class ModScanOpen {
             }
             System.err.println("scan mem_dump …");
             results.add(r);
+        }
+
+        /** Sotto-comando: journal --mods <dir|auto> [--pid <pid>] [--after <data|ms>] [--usn] [--out file]. */
+        static int runJournal(Map<String, String> opt) throws IOException {
+            String mods = opt.get("mods");
+            if (mods != null && (mods.isBlank() || "auto".equalsIgnoreCase(mods))) {
+                mods = null; // rilevamento automatico dal processo javaw
+            }
+            String usn = null;
+            if (opt.containsKey("usn")) {
+                String v = opt.get("usn");
+                usn = v == null || v.isBlank() ? "1" : v;
+            }
+            OpenApi.Response r = OpenJournal.check(mods, opt.get("pid"), opt.get("after"), usn);
+            String outFile = opt.get("out");
+            if (outFile != null) {
+                Files.writeString(Path.of(outFile), r.body, StandardCharsets.UTF_8);
+                System.err.println("Risultato salvato in " + outFile);
+            }
+            System.out.println(r.body);
+            return r.status == 200 ? 0 : 1;
         }
 
         /** Jar dell'agent: proprietà modscan.agent, poi a fianco del nostro jar, poi target di sviluppo. */
@@ -314,16 +339,19 @@ public final class ModScanOpen {
         }
 
         static void usage() {
-            System.out.println("ModScanOpen 1.5.3 — scansioni mod, open source (MIT), offline\n"
+            System.out.println("ModScanOpen 1.6.0 — scansioni mod, open source (MIT), offline\n"
                     + "\n"
                     + "  scan --jar <file.jar>              analizza un file .jar\n"
                     + "  scan --mods <cartella|auto>        analizza tutta la cartella delle mod (auto: dal processo javaw)\n"
                     + "  scan --jar <f> --mods <d> --mods-first   entrambe le scansioni\n"
                     + "  scan --mem <pid|auto> [--mem-out <dir>]  dump bytecode da JVM e scansione (opt-in)\n"
+                    + "  journal [--mods <cartella|auto>] [--pid <pid>] [--after <data|ms>] [--usn]\n"
+                    + "                                     mod aggiunte/modificate dopo l'avvio di Minecraft\n"
                     + "      [--out file.json]              salva l'esito JSON su file\n");
             System.out.println("Esempi:");
             System.out.println("  java -jar ModScanOpen.jar scan --jar UnSospetto.jar");
             System.out.println("  java -jar ModScanOpen.jar scan --mods auto --out results.json");
+            System.out.println("  java -jar ModScanOpen.jar journal --mods auto --usn --out journal.json");
         }
 
         static String message(Exception e) {

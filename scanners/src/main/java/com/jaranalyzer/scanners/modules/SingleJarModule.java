@@ -213,6 +213,9 @@ public final class SingleJarModule implements ScanModule {
         ExecutorService pool2 = Executors.newFixedThreadPool(pool, r -> {
             Thread t = new Thread(r, "scanners-single-jar");
             t.setDaemon(true);
+            // Priorità sotto il normale: la GUI (stessa JVM) resta reattiva
+            // durante la scansione dei dump grandi.
+            t.setPriority(Math.max(Thread.MIN_PRIORITY, Thread.NORM_PRIORITY - 1));
             return t;
         });
         int errors = 0;

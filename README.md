@@ -69,6 +69,24 @@ Output:
 Scarica la versione già buildata dalle **[Release](../../releases)**:
 `ModScanOpen.zip` → scompatta → avvia `ModScanOpen.exe`.
 
+## Rilevamento (v1.6.0)
+
+- **Integrità mod dopo l'avvio di Minecraft**: nuova card nella sezione Mods
+  (`GET /api/mods/journal`, CLI `journal`). Confronta creazione/modifica dei
+  file della cartella mods con l'istante di avvio del processo javaw del gioco;
+  con `--usn` legge anche il journal NTFS (eliminazioni e rinomine durante il
+  gioco; senza privilegi di amministratore lo dice in modo esplicito).
+- **Memory-dump ripulito**: scoping per origine (gioco, librerie, copie
+  remappate Fabric, mod) — il rumore atteso è riassunto in un solo finding INFO;
+  nuovo blocco `memoryScope` con attribuzione per mod e classi "bypassed"
+  (senza file su disco o da percorsi esterni). Sul dump reale 3431 → 199 finding.
+- **Falsi positivi corretti alla fonte**: `class-injection-risk` non scatta più
+  per il solo uso di Mixin (nelle mod Fabric il bytecode caricato in memoria
+  contiene già le firme Mixin); `xor-operation` portato a LOW; `ACC_SYNTHETIC`
+  da solo non è più un'anomalia.
+- **Reattività**: thread degli analyzer a priorità ridotta durante la scansione
+  (la GUI non perde reattività sui dump grandi).
+
 ## Rilevamento (v1.5.3)
 
 - 4 falsi positivi CRITICAL eliminati alla fonte (verificati sul dump IntelliJ,

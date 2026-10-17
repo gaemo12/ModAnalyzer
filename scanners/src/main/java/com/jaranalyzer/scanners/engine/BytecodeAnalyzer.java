@@ -35,7 +35,11 @@ import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 
 public class BytecodeAnalyzer {
-    private static final Set<String> NETWORK_OWNERS = Set.of("java/net/URL", "java/net/HttpURLConnection", "java/net/Socket", "java/net/ServerSocket", "java/nio/channels/SocketChannel", "okhttp3/OkHttpClient", "okhttp3/Request$Builder");
+    // Nota (anti-FP): java/net/URL NON è nella lista — usare una URL (getPath,
+    // toURI, CodeSource.getLocation) non è traffico di rete. Si contano solo
+    // openConnection/openStream/getContent (vedi visitMethodInsn). Senza questo,
+    // LWJGL e classi del gioco finivano segnalate come "dropper".
+    private static final Set<String> NETWORK_OWNERS = Set.of("java/net/HttpURLConnection", "java/net/Socket", "java/net/ServerSocket", "java/nio/channels/SocketChannel", "okhttp3/OkHttpClient", "okhttp3/Request$Builder");
     private static final Set<String> FILE_WRITE_OWNERS = Set.of("java/io/FileOutputStream", "java/io/FileWriter", "java/nio/file/Files");
     private static final Set<String> EXEC_METHODS = Set.of("java/lang/Runtime exec", "java/lang/ProcessBuilder start");
     private static final Set<String> VISITOR_TYPES = Set.of("org/objectweb/asm/ClassVisitor", "org/objectweb/asm/MethodVisitor", "org/objectweb/asm/ClassWriter", "org/objectweb/asm/ClassReader");
@@ -43,7 +47,7 @@ public class BytecodeAnalyzer {
     private static final Set<String> REFLECTION_INVOKE = Set.of("java/lang/reflect/Method invoke", "java/lang/Class forName", "java/lang/ClassLoader defineClass", "java/lang/ClassLoader loadClass");
     private static final Set<String> XOR_STRING_HINTS = Set.of("xor", "xored", "decrypt", "decryptor", "deobfuscate", "decode", "cipher", "enckey", "encryptionkey", "xorkey");
     private static final String MIXIN_PACKAGE = "org/spongepowered/asm/mixin";
-    private static final Set<String> WHITELIST_PACKAGES = Set.of("org/spongepowered/asm/", "net/fabricmc/", "cpw/mods/fml/", "net/minecraftforge/", "org/objectweb/asm/");
+    private static final Set<String> WHITELIST_PACKAGES = Set.of("org/spongepowered/asm/", "net/fabricmc/", "cpw/mods/fml/", "net/minecraftforge/", "org/objectweb/asm/", "com/llamalad7/mixinextras/");
     private static final Pattern IP_PATTERN = Pattern.compile("\\b((?:(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?))\\b");
     private static final Set<String> PRIVATE_IP_PREFIXES = Set.of("192.168.", "10.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.", "172.28.", "172.29.", "172.30.", "172.31.", "127.", "0.0.0.0", "255.255.255.255");
     private static final int MAX_INSTRUCTIONS_PER_METHOD = 2000;
@@ -94,17 +98,11 @@ public class BytecodeAnalyzer {
         }
         boolean isAbstract = (access & 0x400) != 0;
         boolean isFinal = (access & 0x10) != 0;
-        boolean isSuper = (access & 0x20) != 0;
-        boolean isSynthetic = (access & 0x1000) != 0;
-        boolean isEnum = (access & 0x4000) != 0;
-        // Nota (anti-FP): la visibilità package-private NON è un'anomalia — metà
-        // delle classi legittime (helper, record, nested) ce l'ha. Segnalarla
-        // inondava di MEDIUM qualsiasi JAR normale. Restano le contraddizioni vere.
+        // Nota (anti-FP): ACC_SYNTHETIC segnalato solo non è utile — javac lo
+        // mette su bridge/record/lambda di qualsiasi progetto. Si tengono solo
+        // le contraddizioni vere (es. FINAL+ABSTRACT).
         if (isFinal && isAbstract) {
             anomalies.add("ACC_FINAL + ACC_ABSTRACT insieme \u2014 access flag contraddittorie (possibile offuscamento)");
-        }
-        if (isSynthetic) {
-            anomalies.add("ACC_SYNTHETIC \u2014 classe generata dal compilatore o da offuscatore");
         }
         if (!anomalies.isEmpty()) {
             result.add(new Finding("access-flag-anomaly", "Access flags anomali: " + String.join((CharSequence)"; ", anomalies), Severity.MEDIUM, Category.OBFUSCATION).withLocation(className));
@@ -340,6 +338,10 @@ public class BytecodeAnalyzer {
             if (NETWORK_OWNERS.contains(owner)) {
                 this.usesNetwork = true;
             }
+            if ("java/net/URL".equals(owner)
+                    && ("openConnection".equals(name) || "openStream".equals(name) || "getContent".equals(name))) {
+                this.usesNetwork = true;
+            }
             if (FILE_WRITE_OWNERS.contains(owner)) {
                 this.usesFileWrite = true;
             }
@@ -481,21 +483,34 @@ public class BytecodeAnalyzer {
                 if (this.usesExec) {
                     detail.append(" + process execution");
                 }
-                detail.append(". Classic Dropper/Downloader pattern.");
-                this.result.add(new Finding("dropper-behavior", detail.toString(), Severity.CRITICAL, Category.MALWARE_BEHAVIOR).withLocation(location).withRecommendation("Review this method: legitimate mods rarely download and execute files at runtime."));
-            }
-            if (this.usesVisitor || this.usesMixin) {
-                Object apiKind;
-                Object object = apiKind = this.usesVisitor ? "ClassVisitor/MethodVisitor (ASM)" : "";
-                if (this.usesMixin) {
-                    apiKind = (String)apiKind + (((String)apiKind).isEmpty() ? "" : " and ") + "Mixin framework";
+                detail.append(". ");
+                if (this.usesExec) {
+                    detail.append("Pattern dropper/stager: scarica ed esegue codice.");
+                } else {
+                    detail.append("Pattern downloader: scarica e salva file (verifica la provenienza).");
                 }
-                this.result.add(new Finding("class-injection-risk", "Suspicious use of " + (String)apiKind + " in non-framework code. Used by Fractureiser-style malware for runtime bytecode injection.", Severity.HIGH, Category.CODE_INJECTION).withLocation(location).withRecommendation("Verify this is a legitimate transformation pipeline, not runtime mod patching."));
+                // Solo rete+scrittura = downloader (media, resource pack, aggiornamenti:
+                // normali nelle mod) → MEDIUM. Rete+esecuzione di un processo = vero
+                // dropper/stager → CRITICAL.
+                Severity sev = this.usesExec ? Severity.CRITICAL : Severity.MEDIUM;
+                this.result.add(new Finding("dropper-behavior", detail.toString(), sev, Category.MALWARE_BEHAVIOR).withLocation(location).withRecommendation(this.usesExec
+                        ? "Review this method: legitimate mods rarely download and execute files at runtime."
+                        : "Verify the download source: files should be data assets, not executables."));
+            }
+            // Solo ASM a runtime (ClassWriter/ClassVisitor?): è il pattern
+            // Fractureiser. Il solo riferimento a Mixin NON è un segnale: nelle
+            // mod Fabric le classi caricate in memoria sono già processate da
+            // Mixin (firme con CallbackInfo) e il vecchio OR riempiva i dump
+            // del gioco di falsi positivi HIGH. CheatAnalyzer copre i combo ASM+Mixin.
+            if (this.usesVisitor) {
+                this.result.add(new Finding("class-injection-risk", "Suspicious use of ClassVisitor/MethodVisitor (ASM) in non-framework code. Used by Fractureiser-style malware for runtime bytecode injection.", Severity.HIGH, Category.CODE_INJECTION).withLocation(location).withRecommendation("Verify this is a legitimate transformation pipeline, not runtime mod patching."));
             }
             if (this.usesXor && this.usesByteArray) {
                 this.result.add(new Finding("xor-encryption", "Rilevato loop XOR su array di byte (istruzione ixor + baload/bastore). Tecnica comune per nascondere stringhe, URL C2 e payload nei JAR malevoli.", Severity.HIGH, Category.CRYPTO).withLocation(location).withRecommendation("Decompila e verifica cosa viene decifrato; spesso precede il caricamento di classi o l'esecuzione di comandi."));
             } else if (this.usesXor) {
-                this.result.add(new Finding("xor-operation", "Uso dell'istruzione XOR nel bytecode. Pu\u00f2 indicare offuscamento leggero o decifratura runtime.", Severity.MEDIUM, Category.CRYPTO).withLocation(location));
+                // Un solo XOR senza array = tipicamente hashCode o bit flag:
+                // LOW, altrimenti ogni libreria produce una valanga di MEDIUM.
+                this.result.add(new Finding("xor-operation", "Uso dell'istruzione XOR nel bytecode. Pu\u00f2 indicare offuscamento leggero o decifratura runtime.", Severity.LOW, Category.CRYPTO).withLocation(location));
             }
             if (!this.xorStringHints.isEmpty()) {
                 this.result.add(new Finding("crypto-string-hint", "Stringhe nel constant pool suggeriscono decifratura/offuscamento: " + String.join((CharSequence)", ", this.xorStringHints), Severity.MEDIUM, Category.CRYPTO).withLocation(location));
