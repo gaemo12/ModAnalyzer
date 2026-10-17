@@ -75,8 +75,9 @@ Scarica la versione già buildata dalle **[Release](../../releases)**:
   ritrasforma né scrive) le classi delle mod VERIFIED su Modrinth/Megabase, i
   loro jar annidati estratti da Fabric in `.fabric/processedMods` (mappati per
   nome-base JiJ), le librerie del launcher (`meta/libraries`) e `theseus.jar`;
-  le classi JDK erano già fuori scope. Sul pack reale: ~14.300 → ~10.600 classi
-  in scope e retransform a blocchi da 256 classi in una sola chiamata VM
+  le classi JDK erano già fuori scope. Sul pack reale restano in scope solo le
+  classi del gioco e le poche mod non verificate (~6.000 su ~18.800 totali) e la
+  retransform va a blocchi da 256 classi in una sola chiamata VM
   (prima: una chiamata per classe, ~17 minuti sul gioco avviato).
 - **Avvio automatico e risultati nella lista**: all'apertura della sezione Mods
   partono da soli il controllo integrità e il dump memoria (checkbox
