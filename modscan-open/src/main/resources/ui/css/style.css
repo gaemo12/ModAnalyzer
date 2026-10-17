@@ -208,6 +208,7 @@ h1{font-size:clamp(34px,5vw,60px);line-height:1;letter-spacing:-.045em;margin:0 
 .mr b{display:block;font-weight:600;font-size:14.5px}.mr b .chip{margin-left:6px;font-weight:400}.mr small{font:12px var(--mono);color:var(--mut)}.mr .sz{font:13px var(--mono);color:var(--mut);text-align:right}
 .sb{font-size:12px;font-weight:600;padding:4px 11px;border-radius:999px;text-align:center;width:fit-content;transition:.3s}
 .sb.ok{background:rgba(95,214,160,.12);color:#5fd6a0}.sb.unk{background:rgba(242,193,78,.12);color:#f2c14e}.sb.bad{background:rgba(255,69,96,.15);color:#ff7d8c}.sb.new{background:var(--panel2);color:var(--mut)}
+.mchips{display:flex;gap:4px;flex-wrap:wrap;margin:4px 0 0}.mchips .sb{font-size:10.5px;padding:2px 8px;cursor:default}
 .mrw.scn{background:rgba(138,164,255,.05)}@keyframes sweepx{from{transform:translateX(-120px)}to{transform:translateX(1320px)}}
 .mp{position:absolute;left:0;bottom:0;height:2px;background:linear-gradient(90deg,var(--acc),var(--acc2));transition:width .5s;z-index:2}
 .mdet{padding:2px 22px 18px 76px;animation:swap .4s;position:relative;z-index:1}

@@ -69,6 +69,29 @@ Output:
 Scarica la versione già buildata dalle **[Release](../../releases)**:
 `ModScanOpen.zip` → scompatta → avvia `ModScanOpen.exe`.
 
+## Rilevamento (v1.7.0)
+
+- **Dump mirato: le mod verificate non si dumpano**: l'agent salta (né
+  ritrasforma né scrive) le classi delle mod VERIFIED su Modrinth/Megabase, i
+  loro jar annidati estratti da Fabric in `.fabric/processedMods` (mappati per
+  nome-base JiJ), le librerie del launcher (`meta/libraries`) e `theseus.jar`;
+  le classi JDK erano già fuori scope. Sul pack reale: ~14.300 → ~10.600 classi
+  in scope e retransform a blocchi da 256 classi in una sola chiamata VM
+  (prima: una chiamata per classe, ~17 minuti sul gioco avviato).
+- **Avvio automatico e risultati nella lista**: all'apertura della sezione Mods
+  partono da soli il controllo integrità e il dump memoria (checkbox
+  "Automatico all'apertura", preferenza salvata). Gli esiti compaiono come chip
+  su ogni mod: `dopo l'avvio`/`modificata` (journal), `mem N` colorato per
+  gravità (dump), `dump ✓` per le mod saltate perché verificate. Riaprire la
+  sezione non rifà il dump se è già pronto per la sessione di gioco.
+- **Progresso reale**: la card Memoria legge `progress.txt` dell'agent
+  (`GET /api/mem/progress`) e mostra fase e percentuale durante retransform,
+  dump, impacchettamento e analisi; `GET /api/mem/result` recupera l'ultimo
+  dump completato, il server risponde dalla cache per la stessa sessione.
+- **Meno rumore**: "Base64 Encoded Strings Detected" da HIGH a MEDIUM (euristica
+  debole; la rete nascosta ha una regola dedicata). Fix pacchetto:
+  `js/journal.js` mancava dalla lista delle risorse copiate nella WebView.
+
 ## Rilevamento (v1.6.0)
 
 - **Integrità mod dopo l'avvio di Minecraft**: nuova card nella sezione Mods

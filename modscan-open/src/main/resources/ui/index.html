@@ -34,7 +34,7 @@
 <header>
   <div class="brand"><svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle class="pr" cx="20" cy="20" r="17" stroke="#8aa4ff" stroke-width="1.5"/><rect x="3" y="3" width="34" height="34" rx="10" fill="#171513" stroke="#3d3733"/><path d="M11.5 20.5l6 6 11-12.5" stroke="#8aa4ff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg><b>ModScanOpen</b></div>
   <nav class="tabs" id="tabs" aria-label="Modalità di scansione"><div class="thumb" id="thumb"></div></nav>
-  <div class="right"><button class="btn sec sm" id="btn-bug" type="button"><svg class="ic"><use href="#i-bug"/></svg>Segnala bug</button><span class="chip" id="version-badge">v1.6.0</span></div>
+  <div class="right"><button class="btn sec sm" id="btn-bug" type="button"><svg class="ic"><use href="#i-bug"/></svg>Segnala bug</button><span class="chip" id="version-badge">v1.7.0</span></div>
 </header>
 
 <main>
@@ -84,7 +84,7 @@
     <div class="card" style="margin-top:18px" aria-label="Integrità mod">
       <div class="mfold">
         <div class="path"><span class="pic"><svg class="ic" style="width:22px;height:22px"><use href="#i-shield"/></svg></span>
-          <div><code id="jrnl-game">Nessun controllo eseguito</code><small id="jrnl-note">Verifica se una mod è stata aggiunta o modificata dopo l'avvio di Minecraft (javaw): orari dei file e, se richiesto, journal NTFS.</small></div></div>
+          <div><code id="jrnl-game">Nessun controllo eseguito</code><small id="jrnl-note">Verifica se una mod è stata aggiunta o modificata dopo l'avvio di Minecraft (javaw): orari dei file e, se richiesto, journal NTFS. Parte da solo dopo la scansione della cartella; gli esiti compaiono anche nell'elenco mod.</small></div></div>
         <div class="row"><label class="search" style="max-width:280px;cursor:pointer" title="fsutil usn readjournal richiede privilegi di amministratore"><input type="checkbox" id="jrnl-usn" style="margin:0 8px 0 2px">Journal USN (serve admin)</label>
           <button class="btn" id="btn-jrnl" type="button"><svg class="ic"><use href="#i-shield"/></svg>Controlla integrità</button></div>
       </div>
@@ -94,14 +94,16 @@
     <div class="card" style="margin-top:18px" aria-label="Memory dump">
       <div class="mfold">
         <div class="path"><span class="pic"><svg class="ic" style="width:22px;height:22px"><use href="#i-cpu"/></svg></span>
-          <div><code id="mem-path">Nessun processo selezionato</code><small>Dump opt-in del bytecode dalla JVM in esecuzione: attach, dump, scansione. Nulla viene eseguito.</small></div></div>
+          <div><code id="mem-path">Nessun processo selezionato</code><small>Dump opt-in del bytecode dalla JVM in esecuzione: attach, dump, scansione. Nulla viene eseguito. Le mod verificate su Modrinth/Megabase e le librerie note vengono saltate: restano solo le classi da leggere davvero.</small></div></div>
         <div class="row"><label class="search" style="max-width:280px"><svg class="ic"><use href="#i-search"/></svg><select id="mem-pid" aria-label="Processo Java bersaglio"><option value="auto">auto — primo javaw/java</option></select></label>
           <button class="btn sec" id="btn-mem-auto" type="button"><svg class="ic"><use href="#i-cpu"/></svg>Elenca processi</button>
           <button class="btn" id="btn-mem-scan" type="button"><svg class="ic"><use href="#i-shield"/></svg>Dump e scansiona</button></div>
+        <div class="row" style="margin-top:8px"><label class="search" style="max-width:480px;cursor:pointer" title="All'apertura della sezione Mods partono da soli il controllo integrità e il dump memoria; le mod verificate non vengono dumpate. Riaprire la sezione non rifà il dump se è già pronto per questa sessione di gioco."><input type="checkbox" id="mem-auto" style="margin:0 8px 0 2px" checked>Automatico all'apertura: journal + dump memoria (salta le mod verificate)</label></div>
       </div>
       <ul class="steps" id="mem-steps" aria-live="polite"></ul>
       <div class="log" id="mem-log" aria-hidden="true"></div>
       <div class="prog"><span id="mem-pg"></span></div>
+      <div class="ph" id="mem-phase" style="margin:8px 22px 0"></div>
       <div class="rep" id="mem-verdict-slot"></div>
       <div class="rep" id="mem-pri-slot"></div>
       <div class="rep" id="mem-rep"></div>

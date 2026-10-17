@@ -91,7 +91,7 @@ public final class ModScanOpen {
             boolean modsFirst = opt.containsKey("mods-first");
             List<Map<String, Object>> results = new ArrayList<>();
             if (opt.containsKey("mem")) {
-                runMem(opt.get("mem"), opt.get("mem-out"), results);
+                runMem(opt.get("mem"), opt.get("mem-out"), opt.get("mods"), results);
             }
             if (modsFirst) {
                 runMods(mods, results);
@@ -102,7 +102,7 @@ public final class ModScanOpen {
             }
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("tool", "ModScanOpen");
-            out.put("version", "1.6.0");
+            out.put("version", "1.7.0");
             out.put("openSource", true);
             out.put("results", results);
             String json = JsonCodec.write(out);
@@ -168,7 +168,7 @@ public final class ModScanOpen {
             results.add(r);
         }
 
-        static void runMem(String spec, String memOut, List<Map<String, Object>> results) {
+        static void runMem(String spec, String memOut, String modsOpt, List<Map<String, Object>> results) {
             Map<String, Object> r = new LinkedHashMap<>();
             r.put("module", "mem_dump");
             r.put("source", "memory");
@@ -178,18 +178,46 @@ public final class ModScanOpen {
                 Path workDir = memOut == null || memOut.isBlank()
                         ? Path.of(System.getProperty("java.io.tmpdir", "."), "modscan-mem")
                         : Path.of(memOut);
-                Path packed = MemDump.capture(pid, agentJar(), workDir);
+
+                /* Con --mods si salta ciò che è già verificato (mod + annidati +
+                   librerie note): meno classi da ri-trasformare e da analizzare. */
+                List<String> skip = new ArrayList<>();
+                Map<String, Object> skipInfo = new LinkedHashMap<>();
+                try {
+                    java.io.File mods = null;
+                    if (modsOpt != null && !modsOpt.isBlank()) {
+                        mods = ("auto".equalsIgnoreCase(modsOpt) ? locate() : Path.of(modsOpt)).toFile();
+                    }
+                    if (mods != null && mods.isDirectory()) {
+                        MemSkip.Result sr = MemSkip.buildFor(mods);
+                        skip = sr.lines;
+                        skipInfo = sr.summary();
+                        System.err.println("mem-dump: skip " + skip.size() + " origini (mod verificate e librerie)");
+                    } else if (modsOpt != null) {
+                        skipInfo.put("note", "cartella mods non valida: dump completo");
+                    } else {
+                        skipInfo.put("note", "nessuna cartella mods indicata (--mods): dump completo");
+                    }
+                } catch (Exception e) {
+                    skipInfo.put("note", "skip non calcolabile: " + message(e));
+                }
+
+                Path packed = MemDump.capture(pid, agentJar(), workDir, skip);
                 ModuleResult mr = run("single_jar", new ScanContext.JarFileContext(packed));
                 r.put("success", mr.success());
                 r.put("durationMillis", mr.durationMillis());
                 r.put("counters", mr.counters());
                 List<Map<String, Object>> fj = jsonFindings(mr);
                 Map<String, String> origins = MemDump.readOrigins(workDir.resolve("classes-" + pid));
-                r.put("memoryScope", MemScope.apply(packed, fj, origins));
+                Map<String, Object> scope = MemScope.apply(packed, fj, origins);
+                scope.put("skip", skipInfo);
+                r.put("memoryScope", scope);
                 for (Map<String, Object> f : fj) {
                     MemDump.attachOrigin(f, origins);
                 }
                 r.put("findings", fj);
+                r.put("riskScore", OpenAnalysis.riskScore(fj));
+                r.put("riskLevel", OpenAnalysis.riskLevel(OpenAnalysis.riskScore(fj), fj));
                 r.put("file", Sanitizer.fileName(packed));
                 if (mr.error() != null) {
                     r.put("error", mr.error());
@@ -339,12 +367,14 @@ public final class ModScanOpen {
         }
 
         static void usage() {
-            System.out.println("ModScanOpen 1.6.0 — scansioni mod, open source (MIT), offline\n"
+            System.out.println("ModScanOpen 1.7.0 — scansioni mod, open source (MIT), offline\n"
                     + "\n"
                     + "  scan --jar <file.jar>              analizza un file .jar\n"
                     + "  scan --mods <cartella|auto>        analizza tutta la cartella delle mod (auto: dal processo javaw)\n"
                     + "  scan --jar <f> --mods <d> --mods-first   entrambe le scansioni\n"
-                    + "  scan --mem <pid|auto> [--mem-out <dir>]  dump bytecode da JVM e scansione (opt-in)\n"
+                    + "  scan --mem <pid|auto> [--mem-out <dir>] [--mods <cartella|auto>]\n"
+                    + "                                     dump bytecode da JVM e scansione (opt-in);\n"
+                    + "                                     con --mods le mod verificate e le librerie note non vengono dumpate\n"
                     + "  journal [--mods <cartella|auto>] [--pid <pid>] [--after <data|ms>] [--usn]\n"
                     + "                                     mod aggiunte/modificate dopo l'avvio di Minecraft\n"
                     + "      [--out file.json]              salva l'esito JSON su file\n");

@@ -101,7 +101,7 @@ implements JarAnalyzer {
             }
         }
         if (!decryptedBase64.isEmpty()) {
-            findings.add(new Finding.Builder().title("Base64 Encoded Strings Detected").description("Trovate stringhe crittografate in Base64 (Spesso usate per nascondere URL o Webhook).").severity(Severity.HIGH).category(Category.OBFUSCATION).location("Constant Pool (LDC)").evidence("Decrypted strings:\n" + String.join((CharSequence)"\n", decryptedBase64)).build());
+            findings.add(new Finding.Builder().title("Base64 Encoded Strings Detected").description("Trovate stringhe decodificabili in Base64 (spesso usate per nascondere URL o Webhook, ma anche in modo legittimo: segnale debole).").severity(Severity.MEDIUM).category(Category.OBFUSCATION).location("Constant Pool (LDC)").evidence("Decrypted strings:\n" + String.join((CharSequence)"\n", decryptedBase64)).build());
         }
         if (!decodedC2.isEmpty()) {
             findings.add(new Finding.Builder().title("Stringa decodificata con indicatore di rete (possibile C2 nascosto)").description("Una stringa Base64/hex decodificata contiene URL, IP o dominio da infrastruttura C2: offuscamento mirato a nascondere la rete.").severity(Severity.CRITICAL).category(Category.NETWORK).location("Constant Pool (LDC, decoded)").evidence(String.join((CharSequence)"\n", decodedC2.subList(0, Math.min(10, decodedC2.size())))).family("HiddenC2").build());

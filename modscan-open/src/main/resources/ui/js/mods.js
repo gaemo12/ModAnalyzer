@@ -11,6 +11,25 @@
 
     const list = $('mlist');
 
+    /* Badge "risultati nella lista": journal (righe rosse) e dump memoria (chip per mod).
+       Riempiti da journal.js e mem.js dopo i rispettivi controlli. */
+    J.modsBadges = J.modsBadges || { journal: {}, mem: {} };
+    function badges(m) {
+        const key = String(m.fileName || '').toLowerCase();
+        const jb = J.modsBadges.journal[key], mb = J.modsBadges.mem[key];
+        let h = '';
+        if (jb) {
+            h += '<span class="sb ' + (jb === 'added' ? 'bad' : 'unk') + '" title="'
+                + esc(jb === 'added' ? 'File aggiunto dopo l\'avvio di Minecraft' : 'File modificato dopo l\'avvio di Minecraft')
+                + '">' + (jb === 'added' ? 'dopo l\'avvio' : 'modificata') + '</span>';
+        }
+        if (mb) {
+            h += mb.skipped
+                ? '<span class="sb new" title="' + esc('Saltata nel dump: release verificata su ' + (mb.by || 'database pubblico') + ', nessun dato sospetto da leggere') + '">dump ✓</span>'
+                : '<span class="sb ' + mb.cls + '" title="' + esc(mb.title || 'Rilevamenti nel dump memoria') + '">mem ' + mb.count + '</span>';
+        }
+        return h ? '<span class="mchips">' + h + '</span>' : '';
+    }
     /* ---------- percorso ---------- */
     function setPath(p, sourceText) {
         path = p;
@@ -80,7 +99,7 @@
         const note = (m.s === 'bad' || m.s === 'unk') && m.verificationNote && !m.ui.scanning ? '<small class="note ' + m.s + '">' + esc(m.verificationNote) + '</small>' : '';
         const btnCls = m.s === 'bad' ? '' : ' sec';
         return '<div class="mrw' + (m.ui.scanning ? ' scn' : '') + '" id="mw' + i + '"><div class="mr"><span class="pic">' + ic('jar', 20) + '</span>' +
-            '<div><b>' + esc(name) + (m.author ? '<span class="chip">' + esc(String(m.author).slice(0, 28)) + '</span>' : '') + '</b><small>' + (m.ui.scanning ? '<span class="stp">' + esc(m.ui.step) + '</span>' : esc(m.fileName) + ' · ' + sub) + '</small>' + note + '</div>' +
+            '<div><b>' + esc(name) + (m.author ? '<span class="chip">' + esc(String(m.author).slice(0, 28)) + '</span>' : '') + '</b>' + badges(m) + '<small>' + (m.ui.scanning ? '<span class="stp">' + esc(m.ui.step) + '</span>' : esc(m.fileName) + ' · ' + sub) + '</small>' + note + '</div>' +
             '<span class="sz">' + J.fmtBytes(m.fileSize) + '</span><span class="sb ' + m.s + '" title="' + esc(m.verificationNote || '') + '">' + STT[m.s] + '</span>' +
             '<button class="btn sm' + btnCls + '" data-i="' + i + '" type="button"' + (m.ui.scanning ? ' disabled' : '') + '>' + (m.ui.scanning ? '<span class="sp"></span>Scansione…' : ic('shield') + (m.ui.deep ? 'Riscansiona' : 'Scansiona')) + '</button></div>' +
             '<span class="mp" id="mp' + i + '" style="width:' + (m.ui.p || 0) + '%"></span>' + (m.ui.deep && !m.ui.scanning ? detail(m, i) : '') + '</div>';
@@ -142,6 +161,8 @@
         list.innerHTML = rows.length ? rows.slice(0, shown).map(rowHtml).join('') + foot() : '<div class="mempty">' + (entries.length ? 'Nessuna mod corrisponde ai filtri.' : 'Nessun file .jar in questa cartella.') + '</div>';
         observe();
     }
+    /* Journal e dump memoria ri-chiamano questa quando hanno badge nuovi per le righe. */
+    J.modsRefresh = () => { if (entries.length) render(); };
     function more() {
         const f = $('mods-more'); if (!f || shown >= rows.length) return;
         const from = shown; shown = Math.min(rows.length, shown + PAGE_MORE);
@@ -184,6 +205,8 @@
         $('btn-mods-scan').disabled = false;
         busy = false;
         if (c.bad) J.toast(c.bad + ' mod sospette trovate', 'error'); else J.toast('Cartella scansionata');
+        /* v1.7.0: journal e dump di memoria partono da soli; gli esiti compaiono in questa lista. */
+        if (J.journal && J.journal.auto) J.journal.auto();
     }
 
     /* ---------- scansione del singolo jar ---------- */

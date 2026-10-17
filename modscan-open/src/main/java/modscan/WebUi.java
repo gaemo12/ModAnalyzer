@@ -42,6 +42,7 @@ public final class WebUi extends Application {
             "js/report.js",
             "js/jar.js",
             "js/mods.js",
+            "js/journal.js",
             "js/mem.js",
             "js/save-file.js"
     };

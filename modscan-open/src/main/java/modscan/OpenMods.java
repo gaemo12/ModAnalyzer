@@ -83,7 +83,7 @@ final class OpenMods {
                     "error", "Bad Request", "message", "La cartella specificata non esiste o non è accessibile.")));
         }
         try {
-            List<Map<String, Object>> mods = scanFolder(folder);
+            List<Map<String, Object>> mods = folderCached(folder);
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("path", folder.getAbsolutePath().replace("\\", "/"));
             out.put("count", mods.size());
@@ -94,6 +94,35 @@ final class OpenMods {
             return new OpenApi.Response(500, JsonCodec.write(Map.of(
                     "error", "Internal Server Error", "message", "Scansione cartella fallita: " + m)));
         }
+    }
+
+    /* ------------------------------------------------------------ cache breve della cartella */
+
+    private static volatile String lastFolderPath;
+    private static volatile long lastFolderMtime;
+    private static volatile long lastFolderAt;
+    private static volatile List<Map<String, Object>> lastFolderResults;
+
+    /**
+     * Scansione con cache breve (5 minuti, invalidata appena la cartella
+     * cambia): l'auto-dump riusa la scansione appena fatta dalla UI — hash e
+     * verifica online non vengono rifatti due volte. Una cartella modificata
+     * (file aggiunti/rimossi, mtime diverso) è sempre ri-scansionata.
+     */
+    static synchronized List<Map<String, Object>> folderCached(File folder) {
+        String p = folder.getAbsolutePath();
+        long mtime = folder.lastModified();
+        List<Map<String, Object>> cached = lastFolderResults;
+        if (p.equalsIgnoreCase(lastFolderPath) && mtime == lastFolderMtime
+                && System.currentTimeMillis() - lastFolderAt < 300_000 && cached != null) {
+            return cached;
+        }
+        List<Map<String, Object>> r = scanFolder(folder);
+        lastFolderPath = p;
+        lastFolderMtime = mtime;
+        lastFolderAt = System.currentTimeMillis();
+        lastFolderResults = r;
+        return r;
     }
 
     /** Analisi rapida di ogni .jar della cartella: struttura, hash, autore dichiarato, flag cheat. */

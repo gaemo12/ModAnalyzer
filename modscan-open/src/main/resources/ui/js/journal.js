@@ -1,5 +1,7 @@
 /* Integrità mod: una mod è stata aggiunta o modificata dopo l'avvio di Minecraft (javaw)?
-   Usa la cartella mods corrente (o la rileva dal processo) e, su richiesta, il journal USN di NTFS. */
+   Usa la cartella mods corrente (o la rileva dal processo) e, su richiesta, il journal USN di NTFS.
+   v1.7.0: il controllo parte da solo dopo la scansione della cartella e gli esiti compaiono
+   come badge nella lista delle mod (oltre che nella card). */
 (function () {
     'use strict';
     const J = window.J, $ = J.$, esc = J.esc, ic = J.ic;
@@ -62,33 +64,57 @@
         out.innerHTML = h;
     }
 
-    async function run() {
-        if (busy) return;
+    /* Esiti nella lista delle mod: chiave = nome file, valore = added|modified. */
+    function publish(d) {
+        const map = {};
+        (d.suspects || []).forEach((s) => { map[String(s.fileName).toLowerCase()] = s.state === 'added' ? 'added' : 'modified'; });
+        J.modsBadges.journal = map;
+        if (J.modsRefresh) J.modsRefresh();
+    }
+
+    async function run(quiet) {
+        if (busy) return null;
         busy = true;
         btn.disabled = true;
-        out.innerHTML = '';
+        if (!quiet) out.innerHTML = '';
         ph.textContent = 'Confronto degli orari dei file con l\'avvio del gioco…';
         try {
             const p = await currentPath();
             if (!p) {
-                ph.textContent = 'Cartella mods non trovata: avvia Minecraft oppure scegli la cartella nella scheda qui sopra.';
-                return;
+                if (!quiet) ph.textContent = 'Cartella mods non trovata: avvia Minecraft oppure scegli la cartella nella scheda qui sopra.';
+                return null;
             }
             const d = await J.api('/api/mods/journal?path=' + encodeURIComponent(p) + (usnBox && usnBox.checked ? '&usn=1' : ''));
-            ph.textContent = 'Controllo completato';
+            ph.textContent = quiet ? 'Controllo automatico completato' : 'Controllo completato';
             render(d);
-            if (((d.counts || {}).added || 0) + ((d.counts || {}).modified || 0) > 0) {
-                J.error('Attenzione: mod cambiate dopo l\'avvio del gioco');
+            publish(d);
+            const n = ((d.counts || {}).added || 0) + ((d.counts || {}).modified || 0);
+            if (n > 0) {
+                if (quiet) J.toast('Integrità mod: ' + n + ' file cambiat' + (n === 1 ? 'o' : 'i') + ' dopo l\'avvio del gioco', 'error');
+                else J.error('Attenzione: mod cambiate dopo l\'avvio del gioco');
             }
+            return d;
         } catch (e) {
             ph.textContent = 'Controllo non riuscito';
-            out.innerHTML = '<div class="mempty">' + esc(e.message || 'Errore') + '</div>';
-            J.error(e.message || 'Controllo non riuscito');
+            if (!quiet) {
+                out.innerHTML = '<div class="mempty">' + esc(e.message || 'Errore') + '</div>';
+                J.error(e.message || 'Controllo non riuscito');
+            }
+            return null;
         } finally {
             busy = false;
             btn.disabled = false;
         }
     }
 
-    btn.addEventListener('click', run);
+    /* v1.7.0: avvio automatico e silenzioso dopo la scansione della cartella;
+       se il gioco è in esecuzione il pid va all'auto-dump della memoria. */
+    async function auto() {
+        if (busy) return;
+        const d = await run(true);
+        if (d && d.game && d.game.pid && J.mem && J.mem.auto) J.mem.auto(String(d.game.pid));
+    }
+
+    J.journal = { auto: auto, run: () => run(false) };
+    btn.addEventListener('click', () => run(false));
 })();

@@ -17,8 +17,11 @@ import java.util.Map;
  *   <li>{@code GET /api/mods/journal?path=…&pid=…&after=…&usn=1} — mod aggiunte o
  *   modificate dopo l'avvio di Minecraft (orari dei file + journal USN best-effort)</li>
  *   <li>{@code GET /api/health} — controllo che il bridge risponda</li>
- *   <li>{@code POST /api/mem/dump} — memory-dump opt-in (pid=…|auto): dump del
- *   bytecode via agent, analisi col motore locale</li>
+ *   <li>{@code POST /api/mem/dump} — memory-dump opt-in (pid=…|auto, skip=1):
+ *   dump del bytecode via agent (mod verificate e librerie note escluse),
+ *   analisi col motore locale; riuso per la stessa sessione di gioco</li>
+ *   <li>{@code GET /api/mem/progress} — avanzamento del dump in corso</li>
+ *   <li>{@code GET /api/mem/result} — ultimo dump completato</li>
  * </ul>
  * Nessuna rotta di licenza, nessun backend: la risposta JSON ha la stessa forma della vecchia
  * interfaccia perché la UI sia identica.
@@ -68,8 +71,12 @@ public final class OpenApi {
                             params.get("after"), params.get("usn"));
                 case "GET /api/mem/processes":
                     return memProcesses();
+                case "GET /api/mem/progress":
+                    return memProgress();
+                case "GET /api/mem/result":
+                    return memResult();
                 case "POST /api/mem/dump":
-                    return memDump(params.get("pid"));
+                    return memDump(params.get("pid"), params.get("skip"), params.get("mods"));
                 default:
                     return new Response(404, JsonCodec.write(Map.of(
                             "error", "Not Found",
@@ -117,70 +124,182 @@ public final class OpenApi {
         }
     }
 
+    /** Un solo dump alla volta: l'auto-avvio non deve accavallarsi a un dump manuale. */
+    private static final java.util.concurrent.atomic.AtomicBoolean DUMP_RUNNING =
+            new java.util.concurrent.atomic.AtomicBoolean();
+    /** Ultimo report di dump completato: riuso istantaneo per la stessa sessione di gioco. */
+    private static volatile String lastMemBody;
+    private static volatile String lastMemKey;
+    private static volatile long lastMemAt;
+
+    /** Avanzamento del dump in corso (per la barra e la nota della card Memoria). */
+    static Response memProgress() {
+        Map<String, Object> m = new LinkedHashMap<>(MemDump.progress());
+        m.put("running", DUMP_RUNNING.get());
+        return ok(m);
+    }
+
+    /** Ultimo dump completato, se c'è: la GUI lo mostra senza rifare nulla. */
+    static Response memResult() {
+        String b = lastMemBody;
+        if (b == null) {
+            return new Response(404, JsonCodec.write(Map.of(
+                    "error", "Nessun dump completato",
+                    "message", "Avvia un dump della memoria dalla sezione Mods.")));
+        }
+        return new Response(200, b);
+    }
+
     /**
      * Memory-dump opt-in via GUI: attach al pid, dump impacchettato e analisi
      * con la stessa forma di {@code analyzeLocal} (kind {@code mem} +
      * processInfo per la vista processo della UI).
+     *
+     * <p>{@code skip} (default attivo): le classi delle mod VERIFIED, i loro
+     * jar annidati in {@code .fabric/processedMods}, le librerie del launcher e
+     * l'agent Modrinth non vengono dumpati (memoria e tempo risparmiati).
+     * {@code mods} indica la cartella per la verifica (altrimenti auto-detect).
+     *
+     * <p>Se la stessa sessione di gioco ha già un dump completato, la risposta
+     * è quella memorizzata ({@code cached:true}) — nessun nuovo attach.
      */
-    static Response memDump(String pidSpec) {
+    static Response memDump(String pidSpec, String skipParam, String modsParam) {
+        boolean smart = !("0".equals(skipParam) || "false".equalsIgnoreCase(skipParam));
+        String pid = null;
         try {
-            String pid = MemDump.resolvePid(pidSpec == null || pidSpec.isBlank() ? "auto" : pidSpec);
-            java.nio.file.Path workDir = java.nio.file.Path.of(
-                    System.getProperty("java.io.tmpdir", "."), "modscan-mem");
-            java.nio.file.Path packed = MemDump.capture(pid, ModScanOpen.Cli.agentJar(), workDir);
-            Response base = OpenAnalysis.analyzeLocal(packed.toString());
-            if (base.status != 200) {
-                return base;
-            }
-            Map<String, Object> body = new LinkedHashMap<>(JsonCodec.parseObject(base.body));
-            Object fo = body.get("findings");
-            if (fo instanceof java.util.List) {
-                Map<String, String> origins = MemDump.readOrigins(workDir.resolve("classes-" + pid));
-                @SuppressWarnings("unchecked")
-                java.util.List<Map<String, Object>> findings = (java.util.List<Map<String, Object>>) fo;
-                // Scoping per origine (gioco/librerie/mod) + "bypassed", poi il
-                // punteggio va ricalcolato sul rumore già soppresso.
-                body.put("memoryScope", MemScope.apply(packed, findings, origins));
-                body.put("riskScore", OpenAnalysis.riskScore(findings));
-                body.put("riskLevel", OpenAnalysis.riskLevel(OpenAnalysis.riskScore(findings), findings));
-                for (Map<String, Object> fm : findings) {
-                    MemDump.attachOrigin(fm, origins);
-                }
-            }
-            body.put("kind", "mem");
-            body.put("module", "mem_dump");
-            body.put("source", "memory");
-            body.put("pid", pid);
-            body.put("file", packed.getFileName().toString());
-            String procName = "";
+            pid = MemDump.resolvePid(pidSpec == null || pidSpec.isBlank() ? "auto" : pidSpec);
+            long start = 0;
             try {
-                procName = ProcessHandle.of(Long.parseLong(pid)).map(h -> h.info())
-                        .map(i -> i.command().orElse("")).orElse("");
-            } catch (Exception ignored) {
-                // nome processo facoltativo
-            }
-            Object classes = 0;
-            try {
-                Object meta = body.get("metadata");
-                if (meta instanceof Map) {
-                    Object cc = ((Map<?, ?>) meta).get("classCount");
-                    if (cc instanceof Number) {
-                        classes = ((Number) cc).intValue();
+                java.util.Optional<ProcessHandle> oh = ProcessHandle.of(Long.parseLong(pid));
+                if (oh.isPresent()) {
+                    java.util.Optional<java.time.Instant> inst = oh.get().info().startInstant();
+                    if (inst.isPresent()) {
+                        start = inst.get().toEpochMilli();
                     }
                 }
             } catch (Exception ignored) {
-                // conteggio facoltativo
+                // istante di avvio facoltativo: la cache decade col tempo
             }
-            Map<String, Object> proc = new LinkedHashMap<>();
-            proc.put("processName", procName);
-            proc.put("pid", pid);
-            proc.put("loadedClassCount", classes);
-            body.put("processInfo", proc);
-            return new Response(200, JsonCodec.write(body));
+            String key = pid + "|" + start + "|" + (smart ? "1" : "0");
+            String cached = lastMemBody;
+            if (cached != null && key.equals(lastMemKey) && System.currentTimeMillis() - lastMemAt < 6 * 3600_000L) {
+                Map<String, Object> body = new LinkedHashMap<>(JsonCodec.parseObject(cached));
+                body.put("cached", true);
+                return new Response(200, JsonCodec.write(body));
+            }
+            if (!DUMP_RUNNING.compareAndSet(false, true)) {
+                Map<String, Object> m = new LinkedHashMap<>(MemDump.progress());
+                m.put("error", "Dump già in corso");
+                m.put("message", "Un memory-dump è già in esecuzione: " + m.getOrDefault("note", ""));
+                return new Response(409, JsonCodec.write(m));
+            }
+            try {
+                return runMemDump(pid, smart, modsParam, key);
+            } finally {
+                DUMP_RUNNING.set(false);
+            }
         } catch (Exception e) {
             String m = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            MemDump.fail("dump non riuscito: " + m);
             return new Response(500, JsonCodec.write(Map.of("error", "Memory dump fallito", "message", m)));
         }
+    }
+
+    private static Response runMemDump(String pid, boolean smart, String modsParam, String key) throws Exception {
+        long t0 = System.currentTimeMillis();
+        java.nio.file.Path workDir = java.nio.file.Path.of(
+                System.getProperty("java.io.tmpdir", "."), "modscan-mem");
+
+        /* Skip list: mod verificate + annidati + librerie note (richiede la
+           scansione della cartella, la stessa che la UI ha appena fatto). */
+        Map<String, Object> skipInfo = new LinkedHashMap<>();
+        java.util.List<String> skipLines = new java.util.ArrayList<>();
+        if (smart) {
+            java.io.File mods = modsParam != null && !modsParam.isBlank() ? new java.io.File(modsParam) : null;
+            if (mods == null || !mods.isDirectory()) {
+                java.nio.file.Path auto = OpenJournal.autoLocate();
+                if (auto != null) {
+                    mods = auto.toFile();
+                }
+            }
+            if (mods != null && mods.isDirectory()) {
+                MemSkip.Result sr = MemSkip.buildFor(mods);
+                skipLines = sr.lines;
+                skipInfo = sr.summary();
+                skipInfo.put("modsDir", mods.getAbsolutePath().replace('\\', '/'));
+            } else {
+                skipInfo.put("note", "cartella mods non trovata: dump completo (nessuna mod saltata)");
+            }
+        } else {
+            skipInfo.put("note", "skip disattivato: dump completo");
+        }
+
+        java.nio.file.Path packed = MemDump.capture(pid, ModScanOpen.Cli.agentJar(), workDir, skipLines);
+        long dumpMs = System.currentTimeMillis() - t0;
+        MemDump.phase("analyze", "analisi del bytecode del dump col motore locale…", 86);
+        long a0 = System.currentTimeMillis();
+        Response base = OpenAnalysis.analyzeLocal(packed.toString());
+        if (base.status != 200) {
+            MemDump.fail("analisi del dump non riuscita");
+            return base;
+        }
+        Map<String, Object> body = new LinkedHashMap<>(JsonCodec.parseObject(base.body));
+        Object fo = body.get("findings");
+        if (fo instanceof java.util.List) {
+            Map<String, String> origins = MemDump.readOrigins(workDir.resolve("classes-" + pid));
+            @SuppressWarnings("unchecked")
+            java.util.List<Map<String, Object>> findings = (java.util.List<Map<String, Object>>) fo;
+            // Scoping per origine (gioco/librerie/mod) + "bypassed", poi il
+            // punteggio va ricalcolato sul rumore già soppresso.
+            Map<String, Object> scope = MemScope.apply(packed, findings, origins);
+            scope.put("skip", skipInfo);
+            body.put("memoryScope", scope);
+            body.put("riskScore", OpenAnalysis.riskScore(findings));
+            body.put("riskLevel", OpenAnalysis.riskLevel(OpenAnalysis.riskScore(findings), findings));
+            for (Map<String, Object> fm : findings) {
+                MemDump.attachOrigin(fm, origins);
+            }
+        }
+        body.put("kind", "mem");
+        body.put("module", "mem_dump");
+        body.put("source", "memory");
+        body.put("pid", pid);
+        body.put("file", packed.getFileName().toString());
+        String procName = "";
+        try {
+            procName = ProcessHandle.of(Long.parseLong(pid)).map(h -> h.info())
+                    .map(i -> i.command().orElse("")).orElse("");
+        } catch (Exception ignored) {
+            // nome processo facoltativo
+        }
+        Object classes = 0;
+        try {
+            Object meta = body.get("metadata");
+            if (meta instanceof Map) {
+                Object cc = ((Map<?, ?>) meta).get("classCount");
+                if (cc instanceof Number) {
+                    classes = ((Number) cc).intValue();
+                }
+            }
+        } catch (Exception ignored) {
+            // conteggio facoltativo
+        }
+        Map<String, Object> proc = new LinkedHashMap<>();
+        proc.put("processName", procName);
+        proc.put("pid", pid);
+        proc.put("loadedClassCount", classes);
+        body.put("processInfo", proc);
+        body.put("dumpMs", dumpMs);
+        body.put("analysisMs", System.currentTimeMillis() - a0);
+        body.put("cached", false);
+        long totalSecs = (System.currentTimeMillis() - t0) / 1000;
+        MemDump.done("dump completato: " + classes + " classi in " + totalSecs + "s");
+        // Riuso per la stessa sessione di gioco (l'auto-avvio non ripete il lavoro).
+        String json = JsonCodec.write(body);
+        lastMemBody = json;
+        lastMemKey = key;
+        lastMemAt = System.currentTimeMillis();
+        return new Response(200, json);
     }
 
     static void parseForm(String s, Map<String, String> into) {
