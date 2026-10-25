@@ -2,14 +2,14 @@
 (function () {
     'use strict';
     const J = window.J, $ = J.$, R = J.Report;
-    const STEPS = ['Lettura del file', 'Estrazione delle classi', 'Analisi del bytecode', 'Regole di malware e comportamenti sospetti', 'Controllo di rete e offuscamento', 'Calcolo del punteggio'];
-    const LOGS = ['apertura dell\'archivio', 'enumerazione di classi e risorse', 'scansione di chiamate e costanti', 'applicazione delle regole di malware (offline)', 'controllo di rete e offuscamento', 'aggregazione dei rilevamenti'];
+    const STEPS = ['Lettura del file', 'Apertura della mod', 'Lettura del codice', 'Cerco funzioni pericolose o da cheat', 'Controllo connessioni e codice nascosto', 'Preparo il risultato'];
+    const LOGS = ['apro il file .jar', 'elenco le parti della mod', 'leggo il codice della mod', 'cerco furto di dati, controllo remoto e cheat', 'controllo connessioni a internet e codice nascosto', 'metto insieme il risultato'];
     let busy = false, current = null, currentFile = null, currentPath = null;
 
     const verdictSlot = $('jar-verdict-slot'), priSlot = $('jar-pri-slot'), mapSlot = $('jar-map-slot'), rep = $('jar-rep'), drop = $('drop');
 
     function mapCard() {
-        return '<section class="card map" aria-label="Mappa delle classi"><div class="mh"><h3>Mappa delle classi</h3><div class="leg"><span><i style="background:var(--crit)"></i>Critico</span><span><i style="background:var(--high)"></i>Alto</span><span><i style="background:var(--med)"></i>Medio</span><span><i style="background:var(--info)"></i>Basso/Info</span></div></div><div class="grid idle-map" id="jar-grid"></div><p class="mapnote" id="jar-mapnote">Ogni cella è una classe del file; quelle colorate hanno almeno un rilevamento.</p></section>';
+        return '<section class="card map" aria-label="Mappa delle classi"><div class="mh"><h3>Mappa delle classi</h3><div class="leg"><span><i style="background:var(--crit)"></i>Grave</span><span><i style="background:var(--high)"></i>Serio</span><span><i style="background:var(--med)"></i>Dubbio</span><span><i style="background:var(--info)"></i>Nota</span></div></div><div class="grid idle-map" id="jar-grid"></div><p class="mapnote" id="jar-mapnote">Ogni quadratino è una classe del file; quelli colorati hanno qualcosa da guardare.</p></section>';
     }
     function idle() {
         verdictSlot.innerHTML = R.idleVerdict('In attesa di un file', 'Nessuna analisi in corso');
@@ -62,7 +62,7 @@
         mapSlot.innerHTML = mapCard();
         R.Map.build($('jar-grid'), 320);
         const flagged = R.Map.reveal(d.findings, (d.metadata || {}).classCount, R.lastId);
-        $('jar-mapnote').textContent = ((d.metadata || {}).classCount || 0).toLocaleString('it-IT') + ' classi analizzate · ' + flagged + ' con rilevamenti' + (((d.metadata || {}).classCount || 0) > R.Map.n ? ' (la mappa mostra al massimo 1.024 celle)' : '');
+        $('jar-mapnote').textContent = ((d.metadata || {}).classCount || 0).toLocaleString('it-IT') + ' parti di codice controllate · ' + flagged + ' con segnalazioni' + (((d.metadata || {}).classCount || 0) > R.Map.n ? ' (la mappa ne mostra al massimo 1.024)' : '');
         window.onAnalysisComplete && window.onAnalysisComplete(d);
     }
 

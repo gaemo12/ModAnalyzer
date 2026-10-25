@@ -193,7 +193,7 @@ final class OpenMods {
             String msg = e.getMessage() == null ? e.toString() : e.getMessage();
             for (Map<String, Object> m : pending) {
                 if (m.get("verificationNote") == null) {
-                    m.put("verificationNote", "Verifica online non disponibile (" + msg + ")");
+                    m.put("verificationNote", "Controllo online non riuscito (" + msg + ")");
                 }
             }
             return;
@@ -220,7 +220,7 @@ final class OpenMods {
                 if (hit.version() != null) {
                     m.put("modrinthVersion", hit.version());
                 }
-                m.put("verificationNote", "Rilascio ufficiale trovato su " + hit.source()
+                m.put("verificationNote", "Versione ufficiale trovata su " + hit.source()
                         + (hit.version() != null ? " (v" + hit.version() + ")" : ""));
             } else {
                 /* v1.3.0 anti-spoofing: dichiara il nome di una mod molto diffusa ma
@@ -233,7 +233,7 @@ final class OpenMods {
                             + "» ma l'hash non corrisponde a nessun rilascio ufficiale su Modrinth/Megabase:"
                             + " possibile build alterata o rename di un client.");
                 } else if (m.get("verificationNote") == null) {
-                    m.put("verificationNote", "Nessuna corrispondenza su Modrinth o Megabase (build custom o non pubblicata)");
+                    m.put("verificationNote", "Non è nei siti delle mod (Modrinth, Megabase): può essere una versione nuova, modificata o fatta in casa.");
                 }
             }
         }
@@ -289,7 +289,7 @@ final class OpenMods {
                 }
             }
         } catch (Exception e) {
-            m.put("verificationNote", "File non leggibile come archivio JAR.");
+            m.put("verificationNote", "Il file non si apre come mod (.jar): potrebbe essere danneggiato.");
             m.put("status", "SUSPICIOUS");
             return m;
         }
@@ -339,10 +339,10 @@ final class OpenMods {
             m.put("verificationNote", idFlag != null
                     ? "Id della mod («" + modId + "») che combacia con un indicatore di cheat noto ("
                             + idFlag + "): possibile client rinominato."
-                    : "Contenuto di un client/cheat noto rilevato nell'archivio (controllo locale).");
+                    : "Dentro il file c'è codice di un client con cheat già noto.");
         } else {
             m.put("status", "UNVERIFIED");
-            m.put("verificationNote", "Non verificata: la versione open source non consulta rilasci online. Usa «Analizza» per il controllo completo.");
+            m.put("verificationNote", "Non ancora controllata online. Premi «Controlla a fondo» per un controllo completo.");
         }
         return m;
     }

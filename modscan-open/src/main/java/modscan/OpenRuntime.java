@@ -194,7 +194,13 @@ final class OpenRuntime {
     /* ------------------------------------------------------------ riepilogo */
 
     private static Map<String, Object> counts(Map<String, Object> body) {
-        int cmd = ((List<?>) body.getOrDefault("cmdFindings", List.of())).size();
+        /* Solo i finding veri (hanno "flag"): le voci "note" informative non contano. */
+        int cmd = 0;
+        for (Object o : (List<?>) body.getOrDefault("cmdFindings", List.of())) {
+            if (o instanceof Map<?, ?> m && m.get("flag") != null) {
+                cmd++;
+            }
+        }
         Object ld = body.get("logDiff");
         int ghosts = 0;
         if (ld instanceof Map<?, ?> m && m.get("loadedNotOnDisk") instanceof List<?> l) {

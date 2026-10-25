@@ -37,7 +37,7 @@ Viene inviato solo l'hash SHA-1 del file, mai il file né percorsi né dati uten
 ## Struttura repo
 
 ```
-pom.xml              parent Maven (modanalyzer-parent 1.3.0)
+pom.xml              parent Maven (modanalyzer-parent 1.3.1)
 common/              DTO / codec JSON condivisi (solo JDK)
 scanners/            motore di scansione (JDK + ASM)
 modscan-open/        app ModScanOpen (JavaFX) + UI web in resources/ui
@@ -68,6 +68,51 @@ Output:
 
 Scarica la versione già buildata dalle **[Release](../../releases)**:
 `ModScanOpen.zip` → scompatta → avvia `ModScanOpen.exe`.
+
+## Rilevamento (v1.3.1)
+
+Release correttiva della v1.3.0: integra l'interfaccia riscritta in
+linguaggio da giocatore (restata fuori dalla v1.3.0), aggiunge la storia
+per file del journal con i file spariti e corregge un bug della GUI.
+
+### UI in linguaggio da giocatore (`ui/js/explain.js`)
+
+- Il risultato di ogni scansione (file JAR, singola mod, dump memoria) ora
+  parte da un **verdetto in parole semplici** con anello colorato e icona,
+  seguito dalla card **"Cosa abbiamo trovato"**: i rilevamenti raggruppati
+  per argomento (può rubare account, controllo remoto, mining, funzioni da
+  cheat, codice nascosto, connessioni, …) ciascuno con "cos'è" e "perché
+  conta". Card **"Cosa fare"** con i passi concreti e l'avvertenza che un
+  rosso non è una condanna. I dettagli tecnici restano, ripiegati in fondo.
+- Mappa delle classi con tooltip arricchito (classe, livello, numero di
+  segnalazioni); cliccare una cella apre i dettagli.
+- Elenco mod con stati **Ufficiale / Non riconosciuta / Da controllare**,
+  note riscritte in italiano semplice e pulsante "Controlla a fondo".
+- Mapping titoli→gruppi verificato sui campioni del corpus; zip-slip ora nel
+  gruppo "Legge o scrive file sul PC" (prima sotto la nota strutturale).
+
+### Journal: storia per file e file spariti
+
+- `journal.files`: per ogni mod ancora presente, la sequenza di eventi USN
+  (scritto, rinominato con nome vecchio/nuovo accoppiati, attributi
+  cambiati) mostrata anche sulla riga della mod ("Cosa è successo a questo
+  file"); `journal.gone` + `counts.gone`: file **eliminati o rinominati**
+  dopo l'avvio del gioco, con righe dedicate ("Spariti dopo l'avvio") e
+  filtro **"Dopo l'avvio"** nell'elenco mod.
+- Se `fsutil` riporta solo il nome file (senza percorso), gli eventi vengono
+  attribuiti ai file presenti nella cartella: la storia non va persa.
+- In GUI la lettura USN è attiva per impostazione predefinita: senza
+  privilegi di amministratore compare l'avviso esplicito e il controllo
+  prosegue sugli orari dei file (nessun crash).
+
+### Correzioni
+
+- **GUI v1.3.0**: `js/runtime.js` non era nell'elenco delle risorse estratte
+  nella WebView (`WebUi.UI_RESOURCES`), quindi la card "Runtime" della
+  v1.3.0 non partiva (CLI `runtime` funzionava). Ora l'elenco è completo e
+  verificato: tutte le risorse referenziate da `index.html` vengono estratte.
+- Con il gioco non attivo, il conteggio "segnali" del controllo runtime non
+  conta più la nota informativa come un segnale.
 
 ## Rilevamento (v1.3.0)
 

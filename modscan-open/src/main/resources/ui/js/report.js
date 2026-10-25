@@ -2,7 +2,7 @@
 (function () {
     'use strict';
     const J = window.J, esc = J.esc, ic = J.ic;
-    const SEV = { CRITICAL: ['c', 'Critico'], HIGH: ['h', 'Alto'], MEDIUM: ['m', 'Medio'], LOW: ['l', 'Basso'], INFO: ['i', 'Info'] };
+    const SEV = { CRITICAL: ['c', 'Grave'], HIGH: ['h', 'Serio'], MEDIUM: ['m', 'Dubbio'], LOW: ['l', 'Lieve'], INFO: ['i', 'Nota'] };
     const SEV_ORDER = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'];
     const LEVEL = {
         SAFE: ['Nessuna minaccia rilevata', '#5fd6a0'], LOW: ['Rischio basso', 'var(--info)'], MEDIUM: ['Rischio medio', 'var(--med)'],
@@ -42,9 +42,10 @@
                 el.addEventListener('pointermove', (e) => {
                     const c = e.target.closest && e.target.closest('.cell');
                     if (!c || !c.getAttribute('data-name')) { tip.style.opacity = 0; return; }
-                    tip.textContent = c.getAttribute('data-name');
+                    const parts = c.getAttribute('data-name').split('/'), cls = parts.pop();
+                    tip.innerHTML = '<b>' + esc(cls) + '</b>' + (parts.length ? '<small>' + esc(parts.join('/')) + '</small>' : '') + esc(c.getAttribute('data-info') || '') + '<br><em>Clic per vedere i dettagli</em>';
                     tip.style.opacity = 1;
-                    tip.style.left = Math.min(e.clientX + 14, innerWidth - 300) + 'px';
+                    tip.style.left = Math.min(e.clientX + 14, innerWidth - 340) + 'px';
                     tip.style.top = (e.clientY + 16) + 'px';
                 });
                 el.addEventListener('pointerleave', () => { tip.style.opacity = 0; });
@@ -89,6 +90,7 @@
                 c.className = 'cell f';
                 c.setAttribute('data-s', code);
                 c.setAttribute('data-name', loc);
+                c.setAttribute('data-info', SEV[o.sev][1] + ' · ' + o.count + (o.count > 1 ? ' segnalazioni' : ' segnalazione'));
                 c.style.setProperty('--fd', (k++) * 70 + 'ms');
                 this.names[i] = loc + ' · ' + SN[SEV[o.sev][0]] + (o.count > 1 ? ' (' + o.count + ' rilevamenti)' : '');
                 const self = this;
@@ -97,6 +99,7 @@
                     if (!root || !o.first) return;
                     const it = root.querySelector('.item[data-i="' + o.first._i + '"]');
                     if (!it) return;
+                    const dt = root.closest('details'); if (dt) dt.open = true; /* i dettagli tecnici sono ripiegati */
                     it.setAttribute('aria-expanded', 'true');
                     const body = it.querySelector('.fbody'); if (body) body.hidden = false;
                     it.scrollIntoView({ behavior: J.RM ? 'auto' : 'smooth', block: 'center' });
@@ -122,31 +125,70 @@
         return [[heap, 'heap'], [(p.threadCount || 0).toLocaleString('it-IT'), 'thread'], [(p.loadedClassCount || 0).toLocaleString('it-IT'), 'classi caricate'], [J.fmtUptime(p.uptimeMs), 'uptime']];
     }
 
+    const RING_COL = { ok: '#5fd6a0', note: '#5fd6a0', warn: 'var(--med)', bad: 'var(--crit)' };
+    const RING_ICON = { ok: 'shield', note: 'shield', warn: 'alert', bad: 'x' };
+    function ringHtml(state) {
+        const col = RING_COL[state] || 'var(--mut)';
+        return '<div class="ring"><svg viewBox="0 0 120 120"><circle class="bg" cx="60" cy="60" r="54"/><circle class="fg" cx="60" cy="60" r="54" style="stroke:' + col + '"/></svg><b style="color:' + col + '">' + ic(RING_ICON[state] || 'shield', 52) + '</b></div>';
+    }
+
     R.verdictHtml = function (d) {
-        const level = LEVEL[d.riskLevel] ? d.riskLevel : 'SAFE', col = LEVEL[level][1], score = Math.max(0, Math.min(100, d.riskScore || 0));
-        const n = {}; SEV_ORDER.forEach((s) => n[s] = 0);
-        d.findings.forEach((f) => n[sevOf(f)]++);
-        const tot = d.findings.length;
-        const bar = tot ? SEV_ORDER.filter((s) => n[s]).map((s) => '<span class="' + SEV[s][0] + '" data-w="' + (n[s] / tot * 100) + '"></span>').join('') : '<span class="g" data-w="100"></span>';
-        const legend = tot ? SEV_ORDER.filter((s) => n[s]).map((s) => '<span><i class="' + SEV[s][0] + '"></i>' + SEV[s][1] + ' <b>' + n[s] + '</b></span>').join('') : '<span><i class="g"></i>Nessun rilevamento</span>';
-        const m = d.metadata || {}, p = d.processInfo || {};
-        let meta;
+        const s = J.Explain.summarize(d), m = d.metadata || {}, mi = d.modInfo || {}, p = d.processInfo || {};
+        const subject = d.kind === 'jar' ? (m.fileName || 'File') : (exeName(p.processName) || 'Minecraft') + ' · PID ' + (p.pid || d.pid || '?');
+        const chips = [];
         if (d.kind === 'jar') {
-            const sha = m.sha256 || '';
-            meta = '<span>' + esc(m.fileName || 'file') + '</span>' + (sha ? '<span>·</span><span title="' + esc(sha) + '">sha256 ' + esc(sha.slice(0, 10)) + '…' + esc(sha.slice(-6)) + '</span><button class="copy" type="button" data-copy="' + esc(sha) + '" data-msg="SHA-256 copiato">' + ic('copy') + ' copia</button>' : '');
-        } else {
-            meta = '<span>' + esc(exeName(p.processName) || 'java') + '</span><span>·</span><span>PID ' + esc(p.pid || d.pid || '?') + '</span>' + (d.kindLabel ? '<span>·</span><span>' + esc(d.kindLabel) + '</span>' : '');
-        }
-        meta += '<span>·</span><span>' + J.fmtDur(d.analysisTimeMs) + '</span>';
-        const stats = statsFor(d).map((s) => '<div><b>' + esc(s[0]) + '</b>' + esc(s[1]) + '</div>').join('');
-        return '<div class="card verdict" data-score="' + score + '"><div class="ring"><svg viewBox="0 0 120 120"><circle class="bg" cx="60" cy="60" r="54"/><circle class="fg" cx="60" cy="60" r="54" style="stroke:' + col + '"/></svg><b>0</b></div>' +
-            '<div><h3 style="color:' + col + '">' + esc(LEVEL[level][0]) + '</h3><div class="meta">' + meta + '</div><div class="bar" role="img" aria-label="Distribuzione delle gravità">' + bar + '</div><div class="legend">' + legend + '</div>' +
-            '<div class="stats">' + stats + '</div><div class="vactions" id="vactions-' + d.kind + '">' +
-            '<button class="btn sec sm" type="button" data-act="export">' + ic('down') + 'Esporta report</button><button class="btn sec sm" type="button" data-act="summary">' + ic('copy') + 'Copia riepilogo</button><button class="btn sec sm" type="button" data-act="again">' + ic('refresh') + 'Nuova analisi</button></div></div></div>';
+            chips.push(J.fmtBytes(m.fileSize));
+            if (mi.minecraftMod) chips.push('Mod ' + (mi.platform || 'Minecraft') + (mi.mcVersion ? ' · Minecraft ' + mi.mcVersion : ''));
+            else chips.push('Non sembra una mod');
+        } else if (d.kindLabel) chips.push(d.kindLabel);
+        if (s.verified) chips.push('Ufficiale su Modrinth');
+        const chipHtml = chips.map((c) => '<span class="chip">' + esc(c) + '</span>').join('');
+        return '<div class="card verdict vd st-' + s.state + '" data-state="' + s.state + '">' + ringHtml(s.state) +
+            '<div class="vbody"><span class="vsubj">' + esc(subject) + '</span><h3>' + esc(s.headline) + '</h3><p class="vsub">' + esc(s.sub) + '</p>' +
+            (s.also ? '<p class="valso">' + esc(s.also) + '</p>' : '') + '<div class="vchips">' + chipHtml + '</div>' +
+            '<div class="vactions" id="vactions-' + d.kind + '"><button class="btn sec sm" type="button" data-act="export">' + ic('down') + 'Salva report</button>' +
+            '<button class="btn sec sm" type="button" data-act="summary">' + ic('copy') + 'Copia riepilogo</button>' +
+            '<button class="btn sec sm" type="button" data-act="again">' + ic('refresh') + 'Controlla un’altra mod</button></div></div></div>';
     };
 
     R.idleVerdict = function (title, sub) {
-        return '<div class="card verdict idle"><div class="ring"><svg viewBox="0 0 120 120"><circle class="bg" cx="60" cy="60" r="54"/><circle class="fg" cx="60" cy="60" r="54"/></svg><b>–</b></div><div><h3>' + esc(title) + '</h3><div class="meta"><span>' + esc(sub) + '</span></div><div class="bar"></div></div></div>';
+        return '<div class="card verdict vd idle"><div class="ring"><svg viewBox="0 0 120 120"><circle class="bg" cx="60" cy="60" r="54"/></svg><b>–</b></div><div class="vbody"><h3>' + esc(title) + '</h3><p class="vsub">' + esc(sub) + '</p></div></div>';
+    };
+
+    /** Card "Cosa fare": passi concreti in base al verdetto. */
+    R.adviceHtml = function (sum) {
+        return '<div class="card advice st-' + sum.state + '"><div class="fh"><h3>Cosa fare</h3></div><ul>' +
+            sum.advice.map((a) => '<li>' + esc(a) + '</li>').join('') + '</ul><p class="caveat">' + esc(J.Explain.CAVEAT) + '</p></div>';
+    };
+
+    /** Card "Cosa abbiamo trovato": un blocco per argomento, in parole semplici. */
+    R.topicsHtml = function (d, fxId) {
+        const sum = J.Explain.summarize(d);
+        if (!sum.topics.length) {
+            return '<div class="card topics"><div class="fh"><h3>Cosa abbiamo controllato</h3></div><div class="clean">' + ic('shield', 38) + '<b>Non è emerso niente di sospetto</b><span>Abbiamo cercato furto di account e password, controllo remoto, mining, cheat, codice nascosto e connessioni strane.</span></div></div>';
+        }
+        const T = J.Explain.TIER;
+        const rows = sum.topics.map((g) => {
+            const t = g.t, tier = T[t.tier], items = g.items.slice().sort((a, b) => a.s - b.s), shown = items.slice(0, 5);
+            const lis = shown.map((x) => {
+                const sv = SEV[SEV_ORDER[x.s]];
+                return '<li><button type="button" class="tpi" data-fx-act="jump" data-fx-target="' + fxId + '" data-i="' + x.i + '"><span class="sev ' + sv[0] + '">' + sv[1] + '</span><span><strong>' + esc(x.f.title || x.f.ruleName || 'Segnalazione') + '</strong>' +
+                    (x.f.location ? '<small>' + esc(shortLoc(x.f.location)) + '</small>' : '') + '</span></button></li>';
+            }).join('');
+            const more = items.length > 5 ? '<p class="tpmore">…e altre ' + (items.length - 5) + ' nei dettagli tecnici.</p>' : '';
+            const open = (t.tier === 'grave' || t.tier === 'serio') ? ' open' : '';
+            return '<details class="tp t-' + t.tier + '"' + open + '><summary><span class="tpi0">' + ic(t.icon, 22) + '</span><span class="tpt"><b>' + esc(t.label) + '</b><small>' + esc(t.what) + '</small></span>' +
+                '<span class="tier ' + tier[1] + '">' + tier[0] + '</span><span class="tpn" title="Segnalazioni in questo gruppo">' + items.length + '</span></summary>' +
+                '<div class="tpb"><p>' + esc(t.why) + '</p><ul>' + lis + '</ul>' + more + '</div></details>';
+        }).join('');
+        return '<div class="card topics"><div class="fh"><h3>Cosa abbiamo trovato</h3></div>' + rows + '</div>';
+    };
+
+    /** Sezione ripiegata per chi vuole vedere il codice: elenco completo, stringhe, mappa. */
+    R.techHtml = function (d, findingsCard, stringsCard) {
+        const n = (d.findings || []).length;
+        return '<details class="card tech"><summary><span>Dettagli tecnici</span><small>per chi vuole vedere il codice · punteggio tecnico ' + (d.riskScore || 0) + '/100</small><span class="chip">' + n + '</span></summary>' +
+            '<div class="techb">' + findingsCard + stringsCard + '</div></details>';
     };
 
     /* ================= organizzazione dei rilevamenti =================
@@ -154,11 +196,11 @@
        visibile, i dettagli di una voce vengono creati quando la si apre. Filtri, ricerca e raggruppamento lavorano
        sempre sull'INTERO set (nessun taglio silenzioso: contatori e "Mostra altri" lo rendono esplicito). */
     const CAT = {
-        NETWORK: ['Rete', 'globe'], EXECUTION: ['Esecuzione comandi', 'term'], CODE_INJECTION: ['Iniezione di codice', 'inject'],
-        MALWARE_BEHAVIOR: ['Comportamento malware', 'bug'], MALWARE_SIGNATURE: ['Firme note', 'shield'], SUSPICIOUS_API: ['API sospette', 'code'],
-        OBFUSCATION: ['Offuscamento', 'eye'], CRYPTO: ['Crittografia', 'lock'], ENTROPY: ['Entropia', 'eye'], STRUCTURE: ['Struttura del file', 'file'],
-        MANIFEST: ['Manifest', 'file'], FILE_ACCESS: ['Accesso ai file', 'folder'], CERTIFICATE: ['Certificato', 'key'], VIRUSTOTAL: ['VirusTotal', 'shield'],
-        CHEAT: ['Cheat noti', 'alert'], PROCESS: ['Processo', 'cpu'], MEMORY: ['Memoria', 'cpu'], OTHER: ['Altro', 'file']
+        NETWORK: ['Connessioni a internet', 'globe'], EXECUTION: ['Esegue comandi sul PC', 'code'], CODE_INJECTION: ['Si aggancia ad altri programmi', 'inject'],
+        MALWARE_BEHAVIOR: ['Comportamento sospetto', 'bug'], MALWARE_SIGNATURE: ['File pericolosi noti', 'shield'], SUSPICIOUS_API: ['Funzioni delicate di Java', 'code'],
+        OBFUSCATION: ['Codice nascosto', 'eye'], CRYPTO: ['Cifratura', 'lock'], ENTROPY: ['Dati compressi o cifrati', 'eye'], STRUCTURE: ['Struttura del file', 'file'],
+        MANIFEST: ['Informazioni del file', 'file'], FILE_ACCESS: ['Accesso ai file del PC', 'folder'], CERTIFICATE: ['Firma del file', 'shield'], VIRUSTOTAL: ['VirusTotal', 'shield'],
+        CHEAT: ['Funzioni da cheat', 'alert'], PROCESS: ['Gioco in esecuzione', 'cpu'], MEMORY: ['Memoria del gioco', 'cpu'], SYSTEM: ['Sistema', 'cpu'], OTHER: ['Altro', 'file']
     };
     function catKey(f) { const k = String(f.category || '').toUpperCase().replace(/[ -]+/g, '_'); return k || 'OTHER'; }
     function catLabel(k) { return (CAT[k] || [k.charAt(0) + k.slice(1).toLowerCase().replace(/_/g, ' ')])[0]; }
@@ -213,10 +255,12 @@
     const CODE_CAP = 6000;
     function bodyHtml(f, id) {
         let b = '';
+        const tp = J.Explain.topicOf(f);
+        b += '<p class="plain"><b>In parole semplici:</b> ' + esc(tp.what + (tp.why ? ' ' + tp.why : '')) + '</p>';
         if (f.description) b += '<p>' + esc(f.description) + '</p>';
-        if (f.location) b += '<div class="fd"><span>Posizione</span><code>' + esc(f.location) + '</code></div>';
-        if (f.evidence) b += '<div class="fd"><span>Evidenza</span><pre>' + esc(String(f.evidence).slice(0, CODE_CAP)) + '</pre></div>';
-        if (f.recommendation) b += '<div class="fd"><span>Raccomandazione</span><p>' + esc(f.recommendation) + '</p></div>';
+        if (f.location) b += '<div class="fd"><span>Dove nel file</span><code>' + esc(f.location) + '</code></div>';
+        if (f.evidence) b += '<div class="fd"><span>Cosa è stato trovato</span><pre>' + esc(String(f.evidence).slice(0, CODE_CAP)) + '</pre></div>';
+        if (f.recommendation) b += '<div class="fd"><span>Consiglio</span><p>' + esc(f.recommendation) + '</p></div>';
         if (f.decompiledCode) {
             const code = String(f.decompiledCode), cut = code.length > CODE_CAP;
             b += '<div class="fd"><span>' + ic('code') + ' Codice decompilato (CFR)</span><pre class="java">' + esc(cut ? code.slice(0, CODE_CAP) : code) + '</pre>' +
@@ -237,7 +281,7 @@
     function exPaint(st) {
         const root = document.getElementById(st.id); if (!root) return;
         const list = root.querySelector('.list'), foot = root.querySelector('.pgap');
-        list.innerHTML = st.view.rows.length ? st.view.rows.slice(0, st.shown).map(rowHtml).join('') : '<div class="mempty">Nessun rilevamento corrisponde ai filtri.</div>';
+        list.innerHTML = st.view.rows.length ? st.view.rows.slice(0, st.shown).map(rowHtml).join('') : '<div class="mempty">Nessuna segnalazione corrisponde ai filtri.</div>';
         exFoot(st, foot);
         root.querySelectorAll('.fl').forEach((b) => b.setAttribute('aria-pressed', b.dataset.f === st.opt.sev));
         root.querySelectorAll('.cat-chip').forEach((b) => b.setAttribute('aria-pressed', b.dataset.c === st.opt.cat));
@@ -247,7 +291,7 @@
         const total = st.view.items.length, shownItems = exCountItems(st, st.shown);
         if (st.shown >= st.view.rows.length) { foot.hidden = true; return; }
         foot.hidden = false;
-        foot.querySelector('span').textContent = 'Visualizzati ' + shownItems + ' di ' + total + ' rilevamenti.';
+        foot.querySelector('span').textContent = 'Visualizzate ' + shownItems + ' di ' + total + ' segnalazioni.';
         exObserve(st, foot);
     }
     function exMore(st) {
@@ -270,14 +314,14 @@
         const n = model.bySev;
         const chips = [['all', 'Tutti', model.total]].concat(SEV_ORDER.filter((s) => n[SEV[s][0]]).map((s) => [SEV[s][0], SEV[s][1], n[SEV[s][0]]]));
         const head = '<div class="fh"><h3>' + esc(st.title) + ' <span class="chip">' + model.total + '</span></h3><div class="filters">' + chips.map((c, i) => '<button class="fl" data-f="' + c[0] + '" aria-pressed="' + (i === 0) + '">' + c[1] + ' ' + c[2] + '</button>').join('') + '</div></div>';
-        if (!model.total) return '<div class="card finds">' + head + '<div class="clean">' + ic('shield', 38) + '<b>Nessuna minaccia rilevata</b><span>In base all\'analisi eseguita il risultato appare pulito.</span></div></div>';
+        if (!model.total) return '<div class="card finds">' + head + '<div class="clean">' + ic('shield', 38) + '<b>Nessuna segnalazione</b><span>Il controllo non ha trovato niente da segnalare.</span></div></div>';
         const cats = Object.keys(model.byCat).sort((a, b) => model.byCat[a].worst - model.byCat[b].worst || model.byCat[b].n - model.byCat[a].n);
         const catRow = cats.length > 1 ? '<div class="cats"><button class="cat-chip" data-c="all" type="button" aria-pressed="true">Tutte le categorie</button>' +
             cats.map((k) => '<button class="cat-chip" data-c="' + k + '" type="button" aria-pressed="false">' + ic((CAT[k] || CAT.OTHER)[1]) + esc(catLabel(k)) + ' <b>' + model.byCat[k].n + '</b></button>').join('') + '</div>' : '';
-        const tools = '<div class="ftools"><label class="search"><svg class="ic"><use href="#i-search"/></svg><input class="fsearch" type="search" placeholder="Cerca nei rilevamenti" aria-label="Cerca nei rilevamenti"></label>' +
+        const tools = '<div class="ftools"><label class="search"><svg class="ic"><use href="#i-search"/></svg><input class="fsearch" type="search" placeholder="Cerca nelle segnalazioni" aria-label="Cerca nelle segnalazioni"></label>' +
             '<div class="seg2" role="group" aria-label="Raggruppa per"><span>Raggruppa per</span><button type="button" data-g="sev" aria-pressed="true">Gravità</button><button type="button" data-g="cat" aria-pressed="false">Categoria</button></div></div>';
         const first = st.view.rows.slice(0, st.shown);
-        const gap = st.shown < st.view.rows.length ? '<div class="pgap"><span>Visualizzati ' + exCountItems(st, st.shown) + ' di ' + st.view.items.length + ' rilevamenti.</span> <button class="btn sec sm" type="button" data-fx-act="more">Mostra altri</button></div>' : '<div class="pgap" hidden><span></span> <button class="btn sec sm" type="button" data-fx-act="more">Mostra altri</button></div>';
+        const gap = st.shown < st.view.rows.length ? '<div class="pgap"><span>Visualizzate ' + exCountItems(st, st.shown) + ' di ' + st.view.items.length + ' segnalazioni.</span> <button class="btn sec sm" type="button" data-fx-act="more">Mostra altri</button></div>' : '<div class="pgap" hidden><span></span> <button class="btn sec sm" type="button" data-fx-act="more">Mostra altri</button></div>';
         return '<div class="card finds" id="' + st.id + '" data-fx>' + head + tools + catRow + '<div class="list on">' + first.map(rowHtml).join('') + '</div>' + gap + '</div>';
     };
 
@@ -286,25 +330,29 @@
         const top = entries.filter((e) => e.x.sl === 'c' || e.x.sl === 'h').sort((a, b) => SEV_ORDER.indexOf(a.x.sev) - SEV_ORDER.indexOf(b.x.sev)).slice(0, 5);
         if (!top.length) return '';
         return '<div class="card pri"><div class="fh"><h3>Da controllare per primi</h3><span class="chip">' + top.length + ' di ' + (seriousTotal || top.length) + ' gravi</span></div>' +
-            top.map((e) => '<button class="prirow" type="button" data-fx-act="jump" data-fx="' + e.fx + '" data-i="' + e.x.i + '"><span class="sev ' + e.x.sl + '">' + SEV[e.x.sev][1] + '</span><span><strong>' + esc(e.x.f.title || e.x.f.ruleName || 'Rilevamento') + '</strong><small>' + esc((e.label ? e.label + ' · ' : '') + (e.x.f.location ? shortLoc(e.x.f.location) : catLabel(e.x.cat))) + '</small></span><span class="go">' + ic('code') + '</span></button>').join('') + '</div>';
+            top.map((e) => '<button class="prirow" type="button" data-fx-act="jump" data-fx-target="' + e.fx + '" data-i="' + e.x.i + '"><span class="sev ' + e.x.sl + '">' + SEV[e.x.sev][1] + '</span><span><strong>' + esc(e.x.f.title || e.x.f.ruleName || 'Rilevamento') + '</strong><small>' + esc((e.label ? e.label + ' · ' : '') + (e.x.f.location ? shortLoc(e.x.f.location) : catLabel(e.x.cat))) + '</small></span><span class="go">' + ic('code') + '</span></button>').join('') + '</div>';
     };
     R.priorityHtml = function (d, fxId) {
         const model = R.buildModel(d.findings);
         return R.priorityFrom(model.all.map((x) => ({ x: x, fx: fxId })), model.bySev.c + model.bySev.h);
     };
 
-    /** Riepilogo testuale da incollare in un ticket/chat. */
+/** Riepilogo testuale da incollare in una chat o in un ticket. */
     R.summaryText = function (d) {
-        const m = d.metadata || {}, p = d.processInfo || {}, model = R.buildModel(d.findings), L = LEVEL[d.riskLevel] || LEVEL.SAFE;
-        const subject = d.kind === 'jar' ? (m.fileName || 'file') : (exeName(p.processName) || 'processo') + ' (PID ' + (p.pid || d.pid || '?') + ')';
-        const lines = ['ModScanOpen — ' + subject, L[0] + ' · punteggio ' + (d.riskScore || 0) + '/100',
-            'Rilevamenti: ' + model.total + ' (' + ['c', 'h', 'm', 'l', 'i'].filter((k) => model.bySev[k]).map((k) => model.bySev[k] + ' ' + SEV[SEV_ORDER[['c', 'h', 'm', 'l', 'i'].indexOf(k)]][1].toLowerCase()).join(', ') + ')'];
-        if (m.sha256) lines.push('SHA-256: ' + m.sha256);
-        model.all.filter((x) => x.sl === 'c' || x.sl === 'h').slice(0, 8).forEach((x, k) => lines.push((k + 1) + '. [' + SEV[x.sev][1] + '] ' + (x.f.title || x.f.ruleName) + (x.f.location ? ' — ' + x.f.location : '')));
+        const m = d.metadata || {}, p = d.processInfo || {}, sum = J.Explain.summarize(d);
+        const subject = d.kind === 'jar' ? (m.fileName || 'file') : (exeName(p.processName) || 'Minecraft') + ' (PID ' + (p.pid || d.pid || '?') + ')';
+        const lines = ['ModScanOpen — ' + subject, 'Esito: ' + sum.headline, sum.sub];
+        if (sum.also) lines.push(sum.also);
+        if (d.kind === 'jar') lines.push('Mod ufficiale su Modrinth: ' + (sum.verified ? 'sì' : 'no / non riconosciuta'));
+        if (sum.topics.length) {
+            lines.push('', 'Cosa è stato trovato:');
+            sum.topics.forEach((g) => lines.push('- ' + g.t.label + ' (' + g.items.length + ')'));
+        }
+        if (m.sha256) lines.push('', 'SHA-256: ' + m.sha256);
         return lines.join('\n');
     };
 
-    document.addEventListener('click', (e) => {
+        document.addEventListener('click', (e) => {
         const t = e.target;
         const root = t.closest && t.closest('[data-fx]');
         if (!root) { const j = t.closest && t.closest('[data-fx-act="jump"]'); if (j) jump(j); return; }
@@ -332,8 +380,9 @@
         if (body) body.hidden = !open;
     }
     function jump(btn) {
-        const mine = (btn.dataset.fx && document.getElementById(btn.dataset.fx)) || (btn.closest('.view') || document).querySelector('[data-fx]');
+        const mine = ((btn.dataset.fxTarget || btn.dataset.fx) && document.getElementById(btn.dataset.fxTarget || btn.dataset.fx)) || (btn.closest('.view') || document).querySelector('[data-fx]');
         const st = mine && EX[mine.id]; if (!st) return;
+        const dt = mine.closest('details'); if (dt) dt.open = true;
         st.opt = { sev: 'all', cat: 'all', q: '', group: 'sev' }; exRefresh(st);
         const idx = st.view.rows.findIndex((r) => r.h === undefined && String(r.i) === btn.dataset.i);
         if (idx >= st.shown) st.shown = Math.min(st.view.rows.length, idx + 10);
@@ -345,30 +394,25 @@
     R._EX = EX;
 
     /* verifiche esterne (solo JAR): Modrinth (con Megabase di riserva) + tipologia del file */
-    R.certsHtml = function (d) {
+    R.originHtml = function (d) {
         const mi = d.modInfo || {};
-        let mod;
+        let kind = 'na', status, detail;
         if (!mi.minecraftMod) {
-            mod = cert('Tipo file', 'na', 'Non applicabile', 'Il file non sembra una mod Minecraft (Fabric/Forge).');
+            status = 'Non sembra una mod'; detail = 'Dentro il file non ci sono le informazioni tipiche di una mod Fabric o Forge.';
         } else {
-            let det = 'Mod ' + (mi.platform || 'Minecraft') + (mi.modVersion ? ' · v' + mi.modVersion : '') + (mi.mcVersion ? ' · MC ' + mi.mcVersion : '');
-            let extra = '';
-            if (mi.modrinthProjectUrl) extra = '<span class="clink">' + esc(mi.modrinthProjectUrl) + '</span>';
+            const det = 'Mod ' + (mi.platform || 'Minecraft') + (mi.modVersion ? ' v' + mi.modVersion : '') + (mi.mcVersion ? ' · Minecraft ' + mi.mcVersion : '');
             const st = mi.modrinthStatus;
-            if (st === 'VERIFIED') {
-                mod = cert('Modrinth', 'ok', 'Verificato', det + (mi.modrinthVersion ? ' — rilascio ufficiale v' + mi.modrinthVersion : ' — rilascio ufficiale'), extra);
-            } else if (st === 'NOT_FOUND') {
-                mod = cert('Modrinth', 'warn', 'Non verificato', det + ' — nessuna corrispondenza su Modrinth o Megabase: attenzione a build custom o file modificati.');
-            } else if (st === 'ERROR') {
-                mod = cert('Modrinth', 'na', 'Verifica non disponibile', det + ' — impossibile contattare i database delle mod.');
-            } else {
-                mod = cert('Modrinth', 'na', '—', det);
-            }
+            if (st === 'VERIFIED') { kind = 'ok'; status = 'Mod ufficiale'; detail = det + ' — coincide con la versione pubblicata su Modrinth' + (mi.modrinthVersion ? ' (v' + mi.modrinthVersion + ').' : '.'); }
+            else if (st === 'NOT_FOUND') { kind = 'warn'; status = 'Non riconosciuta'; detail = det + ' — non è nei siti delle mod (Modrinth, Megabase). Può essere una versione nuova, modificata o fatta in casa.'; }
+            else if (st === 'ERROR') { status = 'Controllo non riuscito'; detail = det + ' — impossibile collegarsi ai siti delle mod: controlla la connessione.'; }
+            else { status = 'Origine non controllata'; detail = det; }
         }
-        const vt = cert('Rete', 'na', 'Solo Modrinth e Megabase', 'L\'analisi è locale; le uniche connessioni servono a verificare l\'hash sui database delle mod.');
-        return '<div class="certs">' + mod + vt + '</div>';
+        const extra = (mi.modrinthProjectUrl ? '<span class="clink">' + esc(mi.modrinthProjectUrl) + '</span>' : '') +
+            '<p class="mut" style="margin:6px 0 0;font-size:12.5px">Per il controllo viene inviata solo l’impronta (hash) del file, mai il file.</p>';
+        return '<div class="certs one">' + cert('È una mod ufficiale?', kind, status, detail, extra) + '</div>';
     };
-    function cert(name, kind, status, detail, extra) {
+    R.certsHtml = R.originHtml;
+        function cert(name, kind, status, detail, extra) {
         return '<div class="card cert"><div class="ch"><span>' + esc(name) + '</span><span class="cs ' + kind + '">' + esc(status) + '</span></div><p>' + esc(detail) + '</p>' + (extra || '') + '</div>';
     }
 
@@ -412,28 +456,22 @@
      */
     R.render = function (slots, d, opts) {
         opts = opts || {};
+        const sum = J.Explain.summarize(d);
         slots.verdict.innerHTML = R.verdictHtml(d);
+        const fHtml = R.findingsHtml(d, 'Tutte le segnalazioni'), fId = R.lastId;
+        const advice = R.adviceHtml(sum);
         const parts = [];
-        if (d.kind === 'jar') parts.push(R.certsHtml(d));
-        const fHtml = R.findingsHtml(d, opts.findingsTitle), fId = R.lastId;
-        const pHtml = R.priorityHtml(d, fId);
-        if (slots.priority) slots.priority.innerHTML = pHtml; else parts.push(pHtml);
-        parts.push(fHtml);
-        parts.push(R.stringsHtml(d));
+        if (d.kind === 'jar') parts.push(R.originHtml(d));
+        if (slots.priority) slots.priority.innerHTML = advice; else parts.push(advice);
+        parts.push(R.topicsHtml(d, fId));
+        parts.push(R.techHtml(d, fHtml, R.stringsHtml(d)));
         slots.below.innerHTML = parts.join('');
         const roots = slots.priority ? [slots.verdict, slots.below, slots.priority] : [slots.verdict, slots.below];
-        if (slots.verdict === slots.below) { slots.below.innerHTML = R.verdictHtml(d) + parts.join(''); roots.length = 1; }
         roots.forEach((root) => { wire(root, d, opts); root.querySelectorAll('[data-sx]').forEach(sxInit); });
-        const v = slots.verdict.querySelector('.verdict'), score = d.riskScore || 0;
-        requestAnimationFrame(() => {
-            const fg = v.querySelector('.fg'); if (fg) fg.style.strokeDashoffset = 339.3 * (1 - Math.max(0, Math.min(100, score)) / 100);
-            v.querySelectorAll('.bar span').forEach((x) => { x.style.width = x.dataset.w + '%'; });
-            J.count(v.querySelector('.ring b'), score, 0, 900);
-        });
-        return v;
+        return slots.verdict.querySelector('.verdict');
     };
 
-    function wire(root, d, opts) {
+        function wire(root, d, opts) {
         root.onclick = function (e) {
             const c = e.target.closest('[data-copy]');
             if (c) { J.copy(c.dataset.copy, c.dataset.msg); return; }
@@ -469,11 +507,18 @@
     /* ================= export HTML ================= */
     R.exportHtml = function (d) {
         const when = new Date().toLocaleString('it-IT');
-        const m = d.metadata || {}, p = d.processInfo || {};
-        const subject = d.kind === 'jar' ? (m.fileName || 'File analizzato') : (exeName(p.processName) || 'Processo') + ' (PID ' + (p.pid || d.pid || '?') + ')';
-        const colors = { CRITICAL: '#ff4560', HIGH: '#ff8a3d', MEDIUM: '#f2c14e', LOW: '#5fb4ff', INFO: '#9b928a' };
-        const rows = sortFindings(d.findings || []).map((f) => '<tr><td><span class="b" style="background:' + (colors[sevOf(f)]) + '">' + SEV[sevOf(f)][1] + '</span></td><td>' + esc(f.category || '') + '</td><td>' + esc(f.title || f.ruleName || '') + '</td><td>' + esc(f.description || '') + '</td><td><code>' + esc(f.location || '—') + '</code></td></tr>').join('');
-        const html = '<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><title>Report — ' + esc(subject) + '</title><style>body{font-family:Segoe UI,Arial,sans-serif;background:#0f0e0d;color:#efeae2;padding:32px}h1{margin:0 0 6px}.meta{color:#9b928a;margin-bottom:22px;font-size:14px}table{width:100%;border-collapse:collapse;background:#171513}th,td{text-align:left;padding:10px 12px;border-bottom:1px solid #2b2724;font-size:13px;vertical-align:top}th{background:#201d1a;color:#c3a6ff;font-size:12px;text-transform:uppercase}.b{color:#12100e;font-weight:700;padding:2px 9px;border-radius:6px;font-size:12px}code{color:#8aa4ff;word-break:break-all}.s{font-size:44px;font-weight:800}.f{margin-top:18px;color:#6d645d;font-size:12px}</style></head><body><h1>Report di analisi — ' + esc(subject) + '</h1><div class="meta">Generato il ' + esc(when) + (m.sha256 ? ' · SHA-256 ' + esc(m.sha256) : '') + '</div><div class="s">' + (d.riskScore || 0) + '<span style="font-size:16px;color:#9b928a"> / 100 — ' + esc((LEVEL[d.riskLevel] || LEVEL.SAFE)[0]) + '</span></div><h2>Rilevamenti (' + (d.findings || []).length + ')</h2><table><thead><tr><th>Gravità</th><th>Categoria</th><th>Titolo</th><th>Descrizione</th><th>Posizione</th></tr></thead><tbody>' + (rows || '<tr><td colspan="5">Nessun rilevamento.</td></tr>') + '</tbody></table><div class="f">Generato da ModScanOpen (open source, MIT)</div></body></html>';
+        const m = d.metadata || {}, p = d.processInfo || {}, sum = J.Explain.summarize(d), T = J.Explain.TIER;
+        const subject = d.kind === 'jar' ? (m.fileName || 'File analizzato') : (exeName(p.processName) || 'Minecraft') + ' (PID ' + (p.pid || d.pid || '?') + ')';
+        const col = { ok: '#5fd6a0', note: '#5fd6a0', warn: '#f2c14e', bad: '#ff4560' }[sum.state];
+        const colors = { CRITICAL: '#ff4560', HIGH: '#ff8a3d', MEDIUM: '#f2c14e', LOW: '#5fd6a0', INFO: '#9b928a' };
+        const topics = sum.topics.map((g) => '<div class="tp"><h3>' + esc(g.t.label) + ' <span class="t">' + esc(T[g.t.tier][0]) + ' · ' + g.items.length + '</span></h3><p>' + esc(g.t.what + ' ' + g.t.why) + '</p></div>').join('');
+        const rows = sortFindings(d.findings || []).map((f) => '<tr><td><span class="b" style="background:' + colors[sevOf(f)] + '">' + SEV[sevOf(f)][1] + '</span></td><td>' + esc(catLabel(catKey(f))) + '</td><td>' + esc(f.title || f.ruleName || '') + '</td><td><code>' + esc(f.location || '—') + '</code></td></tr>').join('');
+        const html = '<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><title>Report — ' + esc(subject) + '</title><style>body{font-family:Segoe UI,Arial,sans-serif;background:#0f0e0d;color:#efeae2;padding:32px;max-width:980px;margin:0 auto;line-height:1.5}h1{margin:0 0 4px}.meta{color:#9b928a;margin-bottom:22px;font-size:14px}.v{border-left:6px solid ' + col + ';background:#171513;padding:16px 20px;border-radius:10px;margin-bottom:22px}.v h2{margin:0 0 6px;color:' + col + '}.tp{background:#171513;padding:12px 18px;border-radius:10px;margin-bottom:10px}.tp h3{margin:0 0 4px;font-size:16px}.tp p{margin:0;color:#c9c1b8}.t{font-weight:400;font-size:12px;color:#9b928a;margin-left:8px}table{width:100%;border-collapse:collapse;background:#171513}th,td{text-align:left;padding:9px 12px;border-bottom:1px solid #2b2724;font-size:13px;vertical-align:top}th{background:#201d1a;color:#c3a6ff;font-size:12px}.b{color:#12100e;font-weight:700;padding:2px 9px;border-radius:6px;font-size:12px}code{color:#8aa4ff;word-break:break-all}.f{margin-top:18px;color:#6d645d;font-size:12px}</style></head><body><h1>' + esc(subject) + '</h1><div class="meta">Controllato il ' + esc(when) + (m.sha256 ? ' · SHA-256 ' + esc(m.sha256) : '') + '</div>' +
+            '<div class="v"><h2>' + esc(sum.headline) + '</h2><div>' + esc(sum.sub) + '</div>' + (sum.also ? '<div style="margin-top:6px;color:#c9c1b8">' + esc(sum.also) + '</div>' : '') + '</div>' +
+            (topics ? '<h2>Cosa è stato trovato</h2>' + topics : '') +
+            '<h2>Cosa fare</h2><ul>' + sum.advice.map((a) => '<li>' + esc(a) + '</li>').join('') + '</ul>' +
+            '<h2>Dettagli tecnici (' + (d.findings || []).length + ' segnalazioni · punteggio tecnico ' + (d.riskScore || 0) + '/100)</h2><table><thead><tr><th>Importanza</th><th>Tipo</th><th>Segnalazione</th><th>Dove nel file</th></tr></thead><tbody>' + (rows || '<tr><td colspan="4">Nessuna segnalazione.</td></tr>') + '</tbody></table>' +
+            '<div class="f">' + esc(J.Explain.CAVEAT) + ' — Generato da ModScanOpen (open source, MIT)</div></body></html>';
         const ts = new Date().toISOString().replace(/[:.]/g, '-');
         window.ModScanOpenFileSaver.saveTextFile(html, 'report-' + ts + '.html', 'text/html').then((r) => { if (r.success) J.toast('Report salvato'); });
     };

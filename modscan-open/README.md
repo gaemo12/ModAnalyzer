@@ -30,8 +30,15 @@ ModScanOpen.bat runtime --mods auto
   riga di comando del processo di gioco (javaagent/tweakClass/classpath),
   mod caricate secondo `logs/latest.log` vs jar su disco (JiJ inclusi),
   artefatti noti di cheat client nella .minecraft (solo nomi, mai contenuto).
+- `journal [--usn]` riporta anche la storia per file (`journal.files`) e i
+  file **spariti** (eliminati o rinominati) dopo l'avvio del gioco
+  (`journal.gone`, `counts.gone`); senza admin USN degrada con un avviso.
 - L'esito è **JSON su stdout** (o `--out nomefile.json`), leggibile da
   qualsiasi tool o script; exit code 0 = scansione eseguita.
+
+La GUI (v1.3.1) presenta i risultati in **linguaggio da giocatore**: verdetto
+in parole semplici, gruppi "Cosa abbiamo trovato" e consigli "Cosa fare"; i
+dettagli tecnici restano disponibili, ripiegati in fondo.
 
 ## Requisiti
 

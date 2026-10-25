@@ -8,10 +8,13 @@ import com.jaranalyzer.scanners.engine.UsnJournal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Controllo "mod modificate dopo l'avvio di Minecraft" (reimplementazione
@@ -88,7 +91,14 @@ final class OpenJournal {
                 suspects.add(m);
             }
             body.put("suspects", suspects);
-            body.put("journal", journalSection(dir, since, usnParam));
+            Set<String> present = new HashSet<>();
+            for (ModsTimeline.Entry e : tl.entries()) {
+                present.add(e.fileName().toLowerCase(Locale.ROOT));
+            }
+            Map<String, Object> journal = journalSection(dir, since, usnParam, present);
+            body.put("journal", journal);
+            Object gone = journal.get("gone");
+            counts.put("gone", gone instanceof List ? ((List<?>) gone).size() : 0);
             return new OpenApi.Response(200, JsonCodec.write(body));
         } catch (Exception e) {
             String m = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
@@ -176,13 +186,16 @@ final class OpenJournal {
 
     /* ------------------------------------------------------------ journal USN */
 
-    private static Map<String, Object> journalSection(Path dir, long since, String usnParam) {
+    private static Map<String, Object> journalSection(Path dir, long since, String usnParam, Set<String> present) {
         Map<String, Object> journal = new LinkedHashMap<>();
         journal.put("available", false);
         journal.put("truncated", false);
         journal.put("deleted", 0);
         List<Map<String, Object>> events = new ArrayList<>();
         journal.put("events", events);
+        /* Storia per file (solo file ancora presenti) e file spariti dopo l'avvio. */
+        journal.put("files", new LinkedHashMap<String, Object>());
+        journal.put("gone", new ArrayList<Map<String, Object>>());
 
         boolean wantUsn = usnParam != null && !"0".equals(usnParam) && !"false".equalsIgnoreCase(usnParam);
         if (!wantUsn) {
@@ -207,32 +220,84 @@ final class OpenJournal {
             }
             final String baseLower = base;
             final String vol = volume;
+            /* Se fsutil riporta solo il nome (senza percorso) si attribuiscono gli eventi ai file
+               attualmente presenti nella cartella: così la storia di una mod non va persa. */
             UsnJournal.Read rr = UsnJournal.readEvents(volume, startUsn,
-                    file -> underVolume(file, vol, baseLower), 15_000, 300);
+                    file -> underVolume(file, vol, baseLower)
+                            || (!hasSeparator(file) && present.contains(file.toLowerCase(Locale.ROOT))),
+                    20_000, 2000);
+            List<UsnJournal.Event> evs = new ArrayList<>(rr.events());
+            evs.sort(Comparator.comparingLong(UsnJournal.Event::usn));
+            Map<String, List<Map<String, Object>>> perFile = new LinkedHashMap<>();
+            Map<String, String> renamedTo = new LinkedHashMap<>();
+            Map<String, Map<String, Object>> gone = new LinkedHashMap<>();
+            String pendingOld = null;
+            long pendingTime = 0;
             int deleted = 0;
-            for (UsnJournal.Event e : rr.events()) {
+            for (UsnJournal.Event e : evs) {
+                String name = baseName(e.file());
+                String lname = name.toLowerCase(Locale.ROOT);
+                String kind = reasonKind(e.reason());
                 Map<String, Object> em = new LinkedHashMap<>();
                 em.put("usn", e.usn());
                 em.put("file", e.file());
                 em.put("reason", e.reason());
-                String kind = reasonKind(e.reason());
                 em.put("kind", kind);
                 em.put("time", e.timeMillis());
-                if ("deleted".equals(kind) || "renamed".equals(kind)) {
-                    deleted++;
+                if ("renamed_from".equals(kind)) {
+                    pendingOld = name;
+                    pendingTime = e.timeMillis();
+                } else if ("renamed_to".equals(kind) && pendingOld != null
+                        && Math.abs(e.timeMillis() - pendingTime) <= 2000) {
+                    em.put("from", pendingOld);
+                    renamedTo.put(pendingOld.toLowerCase(Locale.ROOT), name);
+                    pendingOld = null;
                 }
                 events.add(em);
+                if ("deleted".equals(kind) || "renamed".equals(kind) || "renamed_from".equals(kind)) {
+                    deleted++;
+                }
+                if (present.contains(lname)) {
+                    perFile.computeIfAbsent(lname, k -> new ArrayList<>()).add(em);
+                }
             }
+            for (UsnJournal.Event e : evs) {
+                String kind = reasonKind(e.reason());
+                if (!"deleted".equals(kind) && !"renamed_from".equals(kind) && !"renamed".equals(kind)) {
+                    continue;
+                }
+                String name = baseName(e.file());
+                String lname = name.toLowerCase(Locale.ROOT);
+                if (present.contains(lname) || !interesting(name)) {
+                    continue;
+                }
+                Map<String, Object> g = new LinkedHashMap<>();
+                g.put("fileName", name);
+                g.put("kind", "deleted".equals(kind) ? "deleted" : "renamed");
+                g.put("time", e.timeMillis());
+                String to = renamedTo.get(lname);
+                if (to != null) {
+                    g.put("renamedTo", to);
+                }
+                gone.put(lname, g);
+            }
+            Map<String, Object> files = new LinkedHashMap<>();
+            for (Map.Entry<String, List<Map<String, Object>>> en : perFile.entrySet()) {
+                List<Map<String, Object>> l = en.getValue();
+                files.put(en.getKey(), l.size() > 40 ? new ArrayList<>(l.subList(l.size() - 40, l.size())) : l);
+            }
+            journal.put("files", files);
+            journal.put("gone", new ArrayList<>(gone.values()));
             journal.put("available", true);
             journal.put("truncated", rr.truncated());
             journal.put("deleted", deleted);
             journal.put("note", "Eventi del journal USN dalla cartella mods dopo l'avvio del gioco"
-                    + (rr.truncated() ? " (elenco troncato a 300 eventi)" : "") + ".");
+                    + (rr.truncated() ? " (elenco troncato a 2000 eventi)" : "") + ".");
             return journal;
         } catch (UsnJournal.AccessDenied ad) {
-            journal.put("note", "Journal USN non leggibile senza privilegi di amministratore"
-                    + " (fsutil usn readjournal): avvia ModScanOpen come amministratore per vedere anche"
-                    + " eliminazioni e rinomine avvenute durante il gioco.");
+            journal.put("note", "Il journal di Windows non è leggibile senza privilegi di amministratore:"
+                    + " vedi solo i file aggiunti o modificati, non quelli spariti o rinominati."
+                    + " Avvia ModScanOpen come amministratore per il controllo completo.");
             return journal;
         } catch (Exception e) {
             String m = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
@@ -256,13 +321,49 @@ final class OpenJournal {
         return r.length() >= 2 ? r.substring(0, 2) : "C:";
     }
 
+    private static boolean hasSeparator(String file) {
+        return file != null && (file.indexOf('\\') >= 0 || file.indexOf('/') >= 0);
+    }
+
+    /** Ultimo componente del percorso (il journal può riportare percorso completo o solo il nome). */
+    static String baseName(String file) {
+        if (file == null) {
+            return "";
+        }
+        int i = Math.max(file.lastIndexOf('\\'), file.lastIndexOf('/'));
+        return i >= 0 ? file.substring(i + 1) : file;
+    }
+
+    /** Esclude temporanei e file senza estensione (cartelle, lock, download parziali). */
+    static boolean interesting(String name) {
+        String n = name == null ? "" : name.toLowerCase(Locale.ROOT);
+        if (n.isEmpty() || n.indexOf('.') < 0 || n.startsWith("~$") || n.endsWith("~")) {
+            return false;
+        }
+        for (String ext : new String[] { ".tmp", ".temp", ".part", ".crdownload", ".lock", ".bak~" }) {
+            if (n.endsWith(ext)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     static String reasonKind(String reason) {
         String r = reason == null ? "" : reason.toLowerCase(Locale.ROOT);
         if (r.contains("delete")) {
             return "deleted";
         }
+        if (r.contains("rename: old") || r.contains("old name")) {
+            return "renamed_from";
+        }
+        if (r.contains("rename: new") || r.contains("new name")) {
+            return "renamed_to";
+        }
         if (r.contains("rename")) {
             return "renamed";
+        }
+        if (r.contains("basic info") || r.contains("security change")) {
+            return "attrs";
         }
         if (r.contains("file create") || r.contains("data extend") || r.contains("data overwrite")
                 || r.contains("data truncation")) {

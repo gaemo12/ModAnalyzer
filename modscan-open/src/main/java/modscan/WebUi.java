@@ -39,10 +39,12 @@ public final class WebUi extends Application {
             "index.html",
             "css/style.css",
             "js/core.js",
+            "js/explain.js",
             "js/report.js",
             "js/jar.js",
             "js/mods.js",
             "js/journal.js",
+            "js/runtime.js",
             "js/mem.js",
             "js/save-file.js"
     };

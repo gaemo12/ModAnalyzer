@@ -6,8 +6,8 @@
 (function () {
     'use strict';
     const J = window.J, $ = J.$, R = J.Report;
-    const STEPS = ['Attach al processo', 'Dump del bytecode', 'Impacchettamento', 'Analisi del bytecode', 'Regole di malware e comportamenti sospetti', 'Calcolo del punteggio'];
-    const LOGS = ['connessione alla JVM bersaglio', 'cattura delle classi in scope (mod verificate saltate)', 'scrittura di mem-<pid>.jar', 'scansione di chiamate e costanti', 'applicazione delle regole (offline)', 'aggregazione dei rilevamenti'];
+    const STEPS = ['Mi collego al gioco', 'Copio il codice in uso', 'Preparo il pacchetto', 'Lettura del codice', 'Cerco funzioni pericolose o da cheat', 'Preparo il risultato'];
+    const LOGS = ['mi collego a Minecraft', 'copio il codice caricato (mod ufficiali saltate)', 'preparo il file da controllare', 'leggo il codice', 'cerco furto di dati, controllo remoto e cheat', 'metto insieme il risultato'];
     const LS = 'modscan.mem.auto';
     let busy = false, current = null, pollTimer = null;
 
@@ -47,7 +47,7 @@
     function stopPoll() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
 
     function mapCard() {
-        return '<section class="card map" aria-label="Mappa delle classi"><div class="mh"><h3>Mappa delle classi</h3><div class="leg"><span><i style="background:var(--crit)"></i>Critico</span><span><i style="background:var(--high)"></i>Alto</span><span><i style="background:var(--med)"></i>Medio</span><span><i style="background:var(--info)"></i>Basso/Info</span></div></div><div class="grid idle-map" id="mem-grid"></div><p class="mapnote" id="mem-mapnote">Ogni cella e una classe dumpata; quelle colorate hanno almeno un rilevamento.</p></section>';
+        return '<section class="card map" aria-label="Mappa delle classi"><div class="mh"><h3>Mappa delle classi</h3><div class="leg"><span><i style="background:var(--crit)"></i>Grave</span><span><i style="background:var(--high)"></i>Serio</span><span><i style="background:var(--med)"></i>Dubbio</span><span><i style="background:var(--info)"></i>Nota</span></div></div><div class="grid idle-map" id="mem-grid"></div><p class="mapnote" id="mem-mapnote">Ogni quadratino è una classe in uso; quelli colorati hanno qualcosa da guardare.</p></section>';
     }
     function idle() {
         stopPoll();
@@ -99,7 +99,7 @@
         mapSlot.innerHTML = mapCard();
         R.Map.build($('mem-grid'), 320);
         const flagged = R.Map.reveal(d.findings, (d.metadata || {}).classCount, R.lastId);
-        $('mem-mapnote').textContent = ((d.metadata || {}).classCount || 0).toLocaleString('it-IT') + ' classi dumpate — ' + flagged + ' con rilevamenti';
+        $('mem-mapnote').textContent = ((d.metadata || {}).classCount || 0).toLocaleString('it-IT') + ' parti di codice controllate — ' + flagged + ' con segnalazioni';
         setPhase(raw.cached
             ? 'Risultati già pronti per questa sessione di gioco: nessun nuovo dump.'
             : 'Dump completato — dump ' + fmtSec(raw.dumpMs) + ', analisi ' + fmtSec(raw.analysisMs) + '.');

@@ -2,27 +2,24 @@
 (function () {
     'use strict';
     const J = window.J, $ = J.$, esc = J.esc, ic = J.ic;
-    const STT = { new: 'In coda', ok: 'Verificata', unk: 'Non verificata', bad: 'Sospetta' };
+    const STT = { new: 'In coda', ok: 'Ufficiale', unk: 'Non riconosciuta', bad: 'Da controllare' };
     const MAP = { VERIFIED: 'ok', UNVERIFIED: 'unk', SUSPICIOUS: 'bad' };
-    const STEP_TXT = ['Estrazione delle classi', 'Analisi del bytecode', 'Confronto con le firme', 'Controllo di rete e offuscamento'];
-    const CK = ['Hash e firme', 'Bytecode', 'Rete', 'Offuscamento'];
-    const CKS = { 1: ['y', 'ok'], 0: ['n', 'problema'], 2: ['w', 'da verificare'] };
+    const STEP_TXT = ['Apro la mod', 'Leggo il codice', 'Cerco cheat e funzioni pericolose', 'Controllo connessioni e codice nascosto'];
+    const CK = ['È ufficiale?', 'Comportamento', 'Internet', 'Codice nascosto'];
+    const CKS = { 1: ['y', 'ok'], 0: ['n', 'attenzione'], 2: ['w', 'da guardare'] };
     let path = null, entries = [], filter = 'all', busy = false, located = false;
 
     const list = $('mlist');
 
     /* Badge "risultati nella lista": journal (righe rosse) e dump memoria (chip per mod).
        Riempiti da journal.js e mem.js dopo i rispettivi controlli. */
-    J.modsBadges = J.modsBadges || { journal: {}, mem: {} };
+    J.modsBadges = J.modsBadges || { journal: {}, mem: {}, gone: [], journalMeta: null };
+    const jkey = (m) => String(m.fileName || '').toLowerCase();
+    const jinfo = (m) => J.modsBadges.journal[jkey(m)];
     function badges(m) {
         const key = String(m.fileName || '').toLowerCase();
-        const jb = J.modsBadges.journal[key], mb = J.modsBadges.mem[key];
+        const mb = J.modsBadges.mem[key];
         let h = '';
-        if (jb) {
-            h += '<span class="sb ' + (jb === 'added' ? 'bad' : 'unk') + '" title="'
-                + esc(jb === 'added' ? 'File aggiunto dopo l\'avvio di Minecraft' : 'File modificato dopo l\'avvio di Minecraft')
-                + '">' + (jb === 'added' ? 'dopo l\'avvio' : 'modificata') + '</span>';
-        }
         if (mb) {
             h += mb.skipped
                 ? '<span class="sb new" title="' + esc('Saltata nel dump: release verificata su ' + (mb.by || 'database pubblico') + ', nessun dato sospetto da leggere') + '">dump ✓</span>'
@@ -95,18 +92,19 @@
     const PAGE = 40, PAGE_MORE = 60;
     let rows = [], shown = 0, io = null;
     function row(m, i) {
-        const name = m.modName || m.fileName, sub = m.sha256 ? m.sha256.slice(0, 8) + '…' + m.sha256.slice(-6) + ' · sha256' : 'hash non disponibile';
+        const name = m.modName || m.fileName, sub = m.sha256 ? m.sha256.slice(0, 8) + '…' + m.sha256.slice(-6) + ' · impronta del file' : 'impronta non disponibile';
         const note = (m.s === 'bad' || m.s === 'unk') && m.verificationNote && !m.ui.scanning ? '<small class="note ' + m.s + '">' + esc(m.verificationNote) + '</small>' : '';
         const btnCls = m.s === 'bad' ? '' : ' sec';
-        return '<div class="mrw' + (m.ui.scanning ? ' scn' : '') + '" id="mw' + i + '"><div class="mr"><span class="pic">' + ic('jar', 20) + '</span>' +
-            '<div><b>' + esc(name) + (m.author ? '<span class="chip">' + esc(String(m.author).slice(0, 28)) + '</span>' : '') + '</b>' + badges(m) + '<small>' + (m.ui.scanning ? '<span class="stp">' + esc(m.ui.step) + '</span>' : esc(m.fileName) + ' · ' + sub) + '</small>' + note + '</div>' +
+        const ji = jinfo(m), jrx = ji && J.jr ? J.jr.flag(ji, m.s === 'ok') : '';
+        return '<div class="mrw' + (m.ui.scanning ? ' scn' : '') + (ji ? (ji.state === 'added' ? ' fa' : ' fm') : '') + '" id="mw' + i + '"><div class="mr"><span class="pic">' + ic('jar', 20) + '</span>' +
+            '<div><b>' + esc(name) + (m.author ? '<span class="chip">' + esc(String(m.author).slice(0, 28)) + '</span>' : '') + '</b>' + badges(m) + '<small>' + (m.ui.scanning ? '<span class="stp">' + esc(m.ui.step) + '</span>' : esc(m.fileName) + ' · ' + sub) + '</small>' + note + jrx + '</div>' +
             '<span class="sz">' + J.fmtBytes(m.fileSize) + '</span><span class="sb ' + m.s + '" title="' + esc(m.verificationNote || '') + '">' + STT[m.s] + '</span>' +
-            '<button class="btn sm' + btnCls + '" data-i="' + i + '" type="button"' + (m.ui.scanning ? ' disabled' : '') + '>' + (m.ui.scanning ? '<span class="sp"></span>Scansione…' : ic('shield') + (m.ui.deep ? 'Riscansiona' : 'Scansiona')) + '</button></div>' +
+            '<button class="btn sm' + btnCls + '" data-i="' + i + '" type="button"' + (m.ui.scanning ? ' disabled' : '') + '>' + (m.ui.scanning ? '<span class="sp"></span>Scansione…' : ic('shield') + (m.ui.deep ? 'Ricontrolla' : 'Controlla a fondo')) + '</button></div>' +
             '<span class="mp" id="mp' + i + '" style="width:' + (m.ui.p || 0) + '%"></span>' + (m.ui.deep && !m.ui.scanning ? detail(m, i) : '') + '</div>';
     }
     function detail(m) {
         const d = m.ui.deep;
-        return '<div class="mdet"><div class="chk">' + d.ck.map((c, j) => '<div class="' + CKS[c][0] + '"><b>' + CK[j] + '</b>' + CKS[c][1] + '</div>').join('') + '</div><div class="mnote"><span>' + esc(d.note) + '</span><button class="btn sec sm" data-open="' + esc(m.path) + '" type="button">Apri analisi completa</button></div></div>';
+        return '<div class="mdet"><div class="chk">' + d.ck.map((c, j) => '<div class="' + CKS[c][0] + '"><b>' + CK[j] + '</b>' + CKS[c][1] + '</div>').join('') + '</div><div class="mnote"><span>' + esc(d.note) + '</span><button class="btn sec sm" data-open="' + esc(m.path) + '" type="button">Apri il risultato completo</button></div></div>';
     }
     function setRow(i) { const e = $('mw' + i); if (e) e.outerHTML = row(entries[i], i); }
     function counts() { const c = { ok: 0, unk: 0, bad: 0, new: 0 }; entries.forEach((m) => c[m.s]++); return c; }
@@ -115,16 +113,16 @@
     async function deepAll() {
         if (deepRun) { deepStop = true; return; }
         const todo = entries.map((m, i) => i).filter((i) => entries[i].s === 'unk' && !entries[i].ui.deep);
-        if (!todo.length) { J.toast('Nessuna mod non verificata da analizzare'); return; }
+        if (!todo.length) { J.toast('Nessuna mod non riconosciuta da controllare'); return; }
         deepRun = true; deepStop = false;
         const btn = $('btn-mods-deep'), label = btn.querySelector('span');
         for (let k = 0; k < todo.length && !deepStop; k++) {
-            label.textContent = 'Analisi ' + (k + 1) + '/' + todo.length + ' — interrompi';
+            label.textContent = 'Controllo ' + (k + 1) + '/' + todo.length + ' — interrompi';
             await scanOne(todo[k]);
         }
         deepRun = false;
         const c = counts();
-        J.toast(deepStop ? 'Analisi interrotta' : 'Analisi completata: ' + c.bad + ' sospette, ' + c.unk + ' ancora non verificate', c.bad ? 'error' : undefined);
+        J.toast(deepStop ? 'Controllo interrotto' : 'Controllo completato: ' + c.bad + ' da controllare, ' + c.unk + ' ancora non riconosciute', c.bad ? 'error' : undefined);
         updateSum(); render();
     }
     function updateSum() {
@@ -132,25 +130,39 @@
         $('ms0').textContent = entries.length || '–'; $('fa').textContent = entries.length;
         $('ms1').textContent = v(c.ok); $('ms2').textContent = v(c.unk); $('ms3').textContent = v(c.bad);
         $('fo').textContent = v(c.ok); $('fu').textContent = v(c.unk); $('fb').textContent = v(c.bad);
+        const touched = entries.filter((m) => jinfo(m)).length + (J.modsBadges.gone || []).length;
+        $('ms4').textContent = $('fj').textContent = J.modsBadges.journalMeta ? touched : '–';
         const w = [c.ok, c.unk, c.bad], n = entries.length || 1;
         document.querySelectorAll('#mbar span').forEach((e, i) => { e.style.width = (any ? w[i] / n * 100 : 0) + '%'; });
         const db = $('btn-mods-deep'), label = db.querySelector('span');
         db.disabled = !(c.unk > 0) && !deepRun;
-        if (!deepRun) label.textContent = c.unk ? 'Analizza le non verificate (' + c.unk + ')' : 'Analizza le non verificate';
+        if (!deepRun) label.textContent = c.unk ? 'Controlla a fondo le non riconosciute (' + c.unk + ')' : 'Controlla a fondo le non riconosciute';
+    }
+    let goneList = [];
+    function ghostRow(x) {
+        const kind = x.kind === 'deleted';
+        return '<div class="mrw fg"><div class="mr"><span class="pic">' + ic('jar', 20) + '</span><div><b>' + esc(x.fileName) + '</b><small>non è più nella cartella</small>' +
+            '<div class="flag">' + ic('flag') + '<span>' + J.jr.ghostWhy(x) + '</span></div></div><span class="sz">–</span><span class="sb ' + (kind ? 'bad' : 'unk') + '">' + (kind ? 'Eliminato' : 'Rinominato') + '</span><span></span></div></div>';
     }
     function buildRows() {
         const q = $('mq').value.toLowerCase();
-        const G = [['bad', 'Sospette', 'var(--crit)'], ['unk', 'Non verificate', 'var(--med)'], ['ok', 'Verificate', '#5fd6a0'], ['new', 'In lettura', '#6d645d']];
+        const G = [['bad', 'Da controllare', 'var(--crit)'], ['unk', 'Non riconosciute', 'var(--med)'], ['ok', 'Ufficiali', '#5fd6a0'], ['new', 'In lettura', '#6d645d']];
         rows = [];
+        goneList = (J.modsBadges.gone || []).filter((x) => !q || x.fileName.toLowerCase().indexOf(q) >= 0);
+        if (goneList.length && (filter === 'all' || filter === 'jr')) {
+            rows.push({ h: 'Spariti dopo l\'avvio', c: 'var(--crit)', n: goneList.length });
+            goneList.forEach((x, k) => rows.push({ gi: k }));
+        }
         G.forEach((g) => {
             const l = [];
-            entries.forEach((m, i) => { if (m.s === g[0] && (filter === 'all' || filter === g[0]) && (!q || (m.fileName + ' ' + (m.modName || '')).toLowerCase().indexOf(q) >= 0)) l.push(i); });
+            entries.forEach((m, i) => { if (m.s === g[0] && (filter === 'all' || filter === g[0] || (filter === 'jr' && jinfo(m))) && (!q || (m.fileName + ' ' + (m.modName || '')).toLowerCase().indexOf(q) >= 0)) l.push(i); });
             if (!l.length) return;
+            l.sort((a, b) => ((jinfo(entries[b]) ? 1 : 0) - (jinfo(entries[a]) ? 1 : 0)) || (a - b));
             rows.push({ h: g[1], c: g[2], n: l.length });
             l.forEach((i) => rows.push({ i: i }));
         });
     }
-    function rowHtml(r) { return r.h ? '<div class="mgh"><i style="background:' + r.c + '"></i>' + r.h + ' <span class="n">' + r.n + '</span></div>' : row(entries[r.i], r.i); }
+    function rowHtml(r) { return r.h ? '<div class="mgh"><i style="background:' + r.c + '"></i>' + r.h + ' <span class="n">' + r.n + '</span></div>' : r.gi !== undefined ? ghostRow(goneList[r.gi]) : row(entries[r.i], r.i); }
     function foot() {
         const total = rows.filter((r) => !r.h).length, nowShown = rows.slice(0, shown).filter((r) => !r.h).length;
         return shown >= rows.length ? '' : '<div class="pgap" id="mods-more"><span>Visualizzate ' + nowShown + ' di ' + total + ' mod.</span> <button class="btn sec sm" type="button" data-more>Mostra altre</button></div>';
@@ -162,7 +174,13 @@
         observe();
     }
     /* Journal e dump memoria ri-chiamano questa quando hanno badge nuovi per le righe. */
-    J.modsRefresh = () => { if (entries.length) render(); };
+    J.modsRefresh = () => { if (entries.length) { updateSum(); render(); } };
+    J.modsFilter = (f) => {
+        filter = f;
+        document.querySelectorAll('#mfil .fl').forEach((x) => x.setAttribute('aria-pressed', x.dataset.f === f));
+        render();
+        const bar = $('mfil'); if (bar && bar.scrollIntoView) bar.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
     function more() {
         const f = $('mods-more'); if (!f || shown >= rows.length) return;
         const from = shown; shown = Math.min(rows.length, shown + PAGE_MORE);
@@ -182,6 +200,7 @@
         busy = true;
         $('btn-mods-scan').disabled = true;
         entries = []; filter = 'all'; $('mq').value = '';
+        J.modsBadges.journal = {}; J.modsBadges.gone = []; J.modsBadges.journalMeta = null;
         document.querySelectorAll('#mfil .fl').forEach((x) => x.setAttribute('aria-pressed', x.dataset.f === 'all'));
         updateSum();
         list.innerHTML = '<div class="mempty"><span class="sp"></span>Lettura della cartella, calcolo degli hash e verifica dei rilasci…</div>';
@@ -201,10 +220,10 @@
         pg.style.width = '100%';
         updateSum(); render();
         const c = counts(), n = entries.length;
-        ph.textContent = n ? 'Scansione completata — ' + c.ok + ' verificate, ' + c.unk + ' non verificate, ' + c.bad + ' sospette' : 'Nessun file .jar trovato';
+        ph.textContent = n ? 'Controllo completato — ' + c.ok + ' ufficiali, ' + c.unk + ' non riconosciute, ' + c.bad + ' da controllare' : 'Nessun file .jar trovato';
         $('btn-mods-scan').disabled = false;
         busy = false;
-        if (c.bad) J.toast(c.bad + ' mod sospette trovate', 'error'); else J.toast('Cartella scansionata');
+        if (c.bad) J.toast(c.bad + ' mod da controllare', 'error'); else J.toast('Cartella controllata');
         /* v1.2.0: journal e dump di memoria partono da soli; gli esiti compaiono in questa lista. */
         if (J.journal && J.journal.auto) J.journal.auto();
     }
@@ -231,7 +250,7 @@
         const d = assess(m, data);
         m.ui.deep = d; m.ui.full = data; m.s = d.status;
         setRow(i); updateSum();
-        J.toast(m.fileName + ': ' + STT[m.s].toLowerCase(), m.s === 'bad' ? 'error' : undefined);
+        J.toast(m.fileName + ': ' + (d.headline || STT[m.s]).toLowerCase(), m.s === 'bad' ? 'error' : undefined);
     }
 
     function has(findings, cats, minSev) {
@@ -246,14 +265,11 @@
     }
     function assess(m, data) {
         const f = data.findings || [], mi = data.modInfo || {};
-        const sevHigh = f.some((x) => /^(CRITICAL|HIGH)$/i.test(x.severity));
-        const hash = mi.modrinthStatus === 'VERIFIED' || m.real === 'ok' ? 1 : (mi.modrinthStatus === 'NOT_FOUND' || mi.modrinthStatus === 'ERROR' || !mi.minecraftMod ? 2 : 2);
-        const ck = [hash, has(f, ['MALWARE_SIGNATURE', 'SUSPICIOUS_API', 'MALWARE_BEHAVIOR', 'CODE_INJECTION', 'EXECUTION', 'CRYPTO']), has(f, ['NETWORK']), has(f, ['OBFUSCATION', 'ENTROPY', 'STRUCTURE'], 'MEDIUM')];
-        let status = sevHigh || /^(HIGH|CRITICAL)$/.test(data.riskLevel || '') ? 'bad' : (hash === 1 ? 'ok' : 'unk');
-        const top = f.slice().sort((a, b) => ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'].indexOf(String(a.severity).toUpperCase()) - ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'].indexOf(String(b.severity).toUpperCase()))[0];
-        let note = top ? (top.title || top.ruleName) + (f.length > 1 ? ' (+' + (f.length - 1) + ' altri rilevamenti)' : '') : 'Nessun comportamento sospetto rilevato nell\'analisi.';
-        note += ' · punteggio ' + (data.riskScore || 0) + '/100';
-        return { status, ck, note };
+        const sum = J.Explain.summarize(data);
+        const hash = mi.modrinthStatus === 'VERIFIED' || m.real === 'ok' ? 1 : 2;
+        const ck = [hash, has(f, ['MALWARE_SIGNATURE', 'SUSPICIOUS_API', 'MALWARE_BEHAVIOR', 'CODE_INJECTION', 'EXECUTION', 'CHEAT']), has(f, ['NETWORK']), has(f, ['OBFUSCATION', 'ENTROPY'], 'MEDIUM')];
+        const status = sum.flag ? 'bad' : (hash === 1 ? 'ok' : 'unk');
+        return { status, ck, note: sum.headline + (sum.also ? ' ' + sum.also : ''), headline: sum.headline };
     }
 
     /* ---------- eventi ---------- */
