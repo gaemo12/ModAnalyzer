@@ -108,10 +108,13 @@
     }
 
     /* v1.2.0: avvio automatico e silenzioso dopo la scansione della cartella;
-       se il gioco è in esecuzione il pid va all'auto-dump della memoria. */
+       se il gioco è in esecuzione il pid va all'auto-dump della memoria.
+       v1.3.0: in catena parte anche il confronto runtime (flag JVM, latest.log,
+       artefatti cheat): è rapido e non dipende dal dump. */
     async function auto() {
         if (busy) return;
         const d = await run(true);
+        if (J.runtime && J.runtime.auto) J.runtime.auto();
         if (d && d.game && d.game.pid && J.mem && J.mem.auto) J.mem.auto(String(d.game.pid));
     }
 

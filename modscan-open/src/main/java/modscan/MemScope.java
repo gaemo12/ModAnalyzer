@@ -150,6 +150,9 @@ final class MemScope {
         Map<String, Integer> classesByOrigin = new LinkedHashMap<>();
         Map<Kind, Integer> kindCount = new LinkedHashMap<>();
         List<String> noOrigin = new ArrayList<>();
+        // v1.3.0: classi del dump che matchano indicatori di cheat client noti
+        // (package precisi: meteordevelopment, wurstclient, ...), aggregate per famiglia.
+        Map<String, List<String>> cheatMatches = new LinkedHashMap<>();
         try (JarFile jf = new JarFile(packedJar.toFile())) {
             Enumeration<JarEntry> en = jf.entries();
             while (en.hasMoreElements()) {
@@ -167,9 +170,31 @@ final class MemScope {
                 if (k == Kind.NONE) {
                     noOrigin.add(cls);
                 }
+                String cheatFlag = cheatFlagOfClass(cls);
+                if (cheatFlag != null) {
+                    List<String> samples = cheatMatches.computeIfAbsent(cheatFlag, x -> new ArrayList<>());
+                    if (samples.size() < 5) {
+                        samples.add(cls);
+                    }
+                }
             }
         } catch (Exception ignored) {
             // jar non rileggibile: si prosegue col solo scoping dei finding
+        }
+        if (!cheatMatches.isEmpty()) {
+            StringBuilder ev = new StringBuilder();
+            int total = 0;
+            for (Map.Entry<String, List<String>> e : cheatMatches.entrySet()) {
+                total += e.getValue().size();
+                if (ev.length() > 0) {
+                    ev.append("; ");
+                }
+                ev.append(e.getKey()).append(" → ").append(e.getValue().get(0))
+                        .append(e.getValue().size() > 1 ? " (+" + (e.getValue().size() - 1) + ")" : "");
+            }
+            findings.add(finding("mem-cheat-signature",
+                    cheatMatches.size() + " famiglie di classi cheat nel dump (" + total + " classi)",
+                    "HIGH", "CHEAT", "(dump)", ev.toString()));
         }
 
         // Declassamento degli artefatti attesi su gioco/librerie/copie remappate.
@@ -300,9 +325,49 @@ final class MemScope {
             kindOut.put(e.getKey().name(), e.getValue());
         }
         out.put("originKinds", kindOut);
+        out.put("cheatMatches", cheatMatches);
         out.put("attribution", attribution);
         out.put("bypassed", bypassed);
         return out;
+    }
+
+    /**
+     * Indicatore di cheat client matchato dal nome interno della classe, null se
+     * nessuno. Match per segmento di package (il prefisso deve iniziare un
+     * segmento: "refill" non matcha "PotionRefilling"), i pattern con '/'
+     * (già package) restano un contains diretto. Più stretto del quick-flag sui
+     * nomi delle voci del jar: qui serve specificità.
+     */
+    static String cheatFlagOfClass(String internalName) {
+        if (internalName == null || internalName.isEmpty()) {
+            return null;
+        }
+        String lower = internalName.toLowerCase(Locale.ROOT);
+        for (String flag : OpenMods.quickFlagPrefixes()) {
+            if (flag == null || flag.isEmpty()) {
+                continue;
+            }
+            if (flag.contains("/")) {
+                if (lower.contains(flag)) {
+                    return flag;
+                }
+                continue;
+            }
+            int from = 0;
+            while (true) {
+                int idx = lower.indexOf(flag, from);
+                if (idx < 0) {
+                    break;
+                }
+                // Il prefisso deve iniziare un segmento di package
+                // (es. "wurstclient/Main" matcha, "PotionRefilling" no).
+                if (idx == 0 || lower.charAt(idx - 1) == '/') {
+                    return flag;
+                }
+                from = idx + 1;
+            }
+        }
+        return null;
     }
 
     private static Map<String, Object> finding(String rule, String title, String severity,

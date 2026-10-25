@@ -20,11 +20,16 @@ L'interfaccia grafica è la **stessa UI web della vecchia JarAnalyzer** (WebView
 ModScanOpen.bat scan --jar UnFile.jar
 ModScanOpen.bat scan --mods auto
 ModScanOpen.bat scan --jar a.jar --mods C:\...\mods --out results.json
+ModScanOpen.bat runtime --mods auto
 ```
 
 - `--jar <file>` analizza un singolo JAR con le regole operative (bytecode, rete, offuscamento, API sospette, entropy, struttura). Le stringhe di firma note di malware riservate allo Staff NON sono incluse in questa edizione open.
 - `--mods <cartella|auto>` con `auto` trova la cartella mods dal processo
   `javaw.exe` attivo, altrimenti usa `%APPDATA%\.minecraft\mods`.
+- `runtime [--mods <dir|auto>] [--pid <pid>]` (v1.3.0) confronto runtime:
+  riga di comando del processo di gioco (javaagent/tweakClass/classpath),
+  mod caricate secondo `logs/latest.log` vs jar su disco (JiJ inclusi),
+  artefatti noti di cheat client nella .minecraft (solo nomi, mai contenuto).
 - L'esito è **JSON su stdout** (o `--out nomefile.json`), leggibile da
   qualsiasi tool o script; exit code 0 = scansione eseguita.
 

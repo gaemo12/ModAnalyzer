@@ -1,0 +1,30 @@
+{
+  "comment": "Artefatti noti di cheat client nella cartella del gioco (v1.3.0). Match SOLO sul nome, mai sul contenuto. 'exact' = nome identico, 'prefix' = il nome inizia così (copre anche <nome>.json dentro config/), 'contains' da usare raramente. Severità MEDIUM: presenza = indizio da confermare, non prova. Nomi generici vietati (niente 'config', 'logs', 'cache'): anti-FP.",
+  "artifacts": [
+    { "name": "meteor-client", "match": "prefix", "family": "Meteor Client", "severity": "MEDIUM" },
+    { "name": ".meteor-client", "match": "prefix", "family": "Meteor Client", "severity": "MEDIUM" },
+    { "name": "futures", "match": "exact", "family": "Futures Client", "severity": "MEDIUM" },
+    { "name": "future-client", "match": "prefix", "family": "Futures Client", "severity": "MEDIUM" },
+    { "name": "vape", "match": "exact", "family": "Vape", "severity": "MEDIUM" },
+    { "name": ".vape", "match": "prefix", "family": "Vape", "severity": "MEDIUM" },
+    { "name": "rusherhack", "match": "prefix", "family": "RusherHack", "severity": "MEDIUM" },
+    { "name": ".rusherhack", "match": "prefix", "family": "RusherHack", "severity": "MEDIUM" },
+    { "name": ".impact", "match": "exact", "family": "Impact", "severity": "MEDIUM" },
+    { "name": "liquidbounce", "match": "prefix", "family": "LiquidBounce", "severity": "MEDIUM" },
+    { "name": ".liquidbounce", "match": "prefix", "family": "LiquidBounce", "severity": "MEDIUM" },
+    { "name": "aristois", "match": "prefix", "family": "Aristois", "severity": "MEDIUM" },
+    { "name": "novoline", "match": "prefix", "family": "Novoline", "severity": "MEDIUM" },
+    { "name": "konas", "match": "prefix", "family": "Konas Client", "severity": "MEDIUM" },
+    { "name": "sigma", "match": "exact", "family": "Sigma Client", "severity": "MEDIUM" },
+    { "name": ".sigma", "match": "exact", "family": "Sigma Client", "severity": "MEDIUM" },
+    { "name": "astolfo", "match": "prefix", "family": "Astolfo", "severity": "MEDIUM" },
+    { "name": ".rise", "match": "exact", "family": "Rise Client", "severity": "MEDIUM" },
+    { "name": "intentclient", "match": "prefix", "family": "Intention Client", "severity": "MEDIUM" },
+    { "name": ".intention", "match": "exact", "family": "Intention Client", "severity": "MEDIUM" },
+    { "name": "fdpclient", "match": "prefix", "family": "FDP Client", "severity": "MEDIUM" },
+    { "name": "thunderhack", "match": "prefix", "family": "ThunderHack", "severity": "MEDIUM" },
+    { "name": "3arthh4ck", "match": "prefix", "family": "3arthh4ck", "severity": "MEDIUM" },
+    { "name": ".kamiblue", "match": "exact", "family": "KAMI Blue", "severity": "MEDIUM" },
+    { "name": "bleachhack", "match": "prefix", "family": "BleachHack", "severity": "MEDIUM" }
+  ]
+}

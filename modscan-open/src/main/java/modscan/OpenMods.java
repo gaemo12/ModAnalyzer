@@ -70,8 +70,27 @@ final class OpenMods {
     private static final Pattern TOML_DISPLAY = Pattern.compile("displayName\\s*=\\s*\"([^\"]{1,120})\"");
     private static final Pattern TOML_AUTHOR = Pattern.compile("authors\\s*=\\s*\"([^\"]{1,80})\"");
     private static final Pattern MCMOD_NAME = Pattern.compile("\"name\"\\s*:\\s*\"([^\"]{1,120})\"");
+    private static final Pattern MCMOD_ID = Pattern.compile("\"modid\"\\s*:\\s*\"([^\"]{1,100})\"", Pattern.CASE_INSENSITIVE);
+    /** Id dichiarato: fabric/quilt "id" o modId di mods.toml (usato per quick-flag e spoofing). */
+    private static final Pattern FABRIC_ID = Pattern.compile("\"id\"\\s*:\\s*\"([^\"]{1,100})\"");
+    private static final Pattern TOML_MODID = Pattern.compile("modId\\s*=\\s*\"([^\"]{1,100})\"");
+
+    /* Mod molto diffuse: se il jar dichiara uno di questi nomi ma l'hash non risulta
+     * su Modrinth/Megabase, è una build non ufficiale che si spaccia per la mod nota
+     * (rename di cheat o build alterata). Match esatto sul nome, mai per sottostringa. */
+    private static final java.util.Set<String> WELL_KNOWN_MODS = java.util.Set.of(
+            "sodium", "lithium", "phosphor", "iris", "indium", "fabric api", "fabric-api",
+            "modmenu", "jade", "jei", "just enough items (jei)", "create", "journeymap",
+            "appleskin", "xaero's minimap", "xaero's world map", "cloth config",
+            "architectury", "lazydfu", "starlight", "ferritecore", "modernfix",
+            "embeddium", "entityculling", "immediatelyfast", "lithium (mod)");
 
     private OpenMods() {
+    }
+
+    /** Prefissi quick-flag condivisi col confronto runtime e col memory-dump. */
+    static String[] quickFlagPrefixes() {
+        return QUICK_FLAG_PREFIXES;
     }
 
     /* ------------------------------------------------------------ GET /api/mods/folder */
@@ -203,8 +222,19 @@ final class OpenMods {
                 }
                 m.put("verificationNote", "Rilascio ufficiale trovato su " + hit.source()
                         + (hit.version() != null ? " (v" + hit.version() + ")" : ""));
-            } else if (m.get("verificationNote") == null) {
-                m.put("verificationNote", "Nessuna corrispondenza su Modrinth o Megabase (build custom o non pubblicata)");
+            } else {
+                /* v1.3.0 anti-spoofing: dichiara il nome di una mod molto diffusa ma
+                   l'hash non esiste sui database pubblici → build non ufficiale. */
+                Object declared = m.get("modName");
+                String dn = declared instanceof String s && !s.isBlank() ? s.trim().toLowerCase(Locale.ROOT) : null;
+                if (dn != null && WELL_KNOWN_MODS.contains(dn)) {
+                    m.put("spoofSuspect", true);
+                    m.put("verificationNote", "Dichiara di essere «" + declared
+                            + "» ma l'hash non corrisponde a nessun rilascio ufficiale su Modrinth/Megabase:"
+                            + " possibile build alterata o rename di un client.");
+                } else if (m.get("verificationNote") == null) {
+                    m.put("verificationNote", "Nessuna corrispondenza su Modrinth o Megabase (build custom o non pubblicata)");
+                }
             }
         }
     }
@@ -237,6 +267,7 @@ final class OpenMods {
         }
 
         String modName = null, author = null, fabric = null, toml = null, mcmod = null;
+        String modId = null, idFlag = null;
         boolean flagged = false;
         try (ZipFile zip = new ZipFile(f)) {
             Enumeration<? extends ZipEntry> entries = zip.entries();
@@ -268,14 +299,20 @@ final class OpenMods {
             if (nm.find()) modName = nm.group(1);
             Matcher au = FABRIC_AUTHOR.matcher(fabric);
             if (au.find()) author = au.group(1);
+            Matcher id = FABRIC_ID.matcher(fabric);
+            if (id.find()) modId = id.group(1);
         } else if (toml != null) {
             Matcher nm = TOML_DISPLAY.matcher(toml);
             if (nm.find()) modName = nm.group(1);
             Matcher au = TOML_AUTHOR.matcher(toml);
             if (au.find()) author = au.group(1);
+            Matcher mi = TOML_MODID.matcher(toml);
+            if (mi.find()) modId = mi.group(1);
         } else if (mcmod != null) {
             Matcher nm = MCMOD_NAME.matcher(mcmod);
             if (nm.find()) modName = nm.group(1);
+            Matcher mi = MCMOD_ID.matcher(mcmod);
+            if (mi.find()) modId = mi.group(1);
         }
         if (modName != null) {
             m.put("modName", modName);
@@ -283,10 +320,26 @@ final class OpenMods {
         if (author != null) {
             m.put("author", author);
         }
+        if (modId != null && !modId.isBlank()) {
+            m.put("modId", modId);
+            /* v1.3.0: il quick-flag controlla anche l'id dichiarato nei metadati,
+               non solo i nomi delle voci (un jar minimale può avere solo l'id). */
+            String idl = modId.toLowerCase(Locale.ROOT);
+            for (String flag : QUICK_FLAG_PREFIXES) {
+                if (!flag.isEmpty() && idl.contains(flag)) {
+                    idFlag = flag;
+                    flagged = true;
+                    break;
+                }
+            }
+        }
 
         if (flagged) {
             m.put("status", "SUSPICIOUS");
-            m.put("verificationNote", "Contenuto di un client/cheat noto rilevato nell'archivio (controllo locale).");
+            m.put("verificationNote", idFlag != null
+                    ? "Id della mod («" + modId + "») che combacia con un indicatore di cheat noto ("
+                            + idFlag + "): possibile client rinominato."
+                    : "Contenuto di un client/cheat noto rilevato nell'archivio (controllo locale).");
         } else {
             m.put("status", "UNVERIFIED");
             m.put("verificationNote", "Non verificata: la versione open source non consulta rilasci online. Usa «Analizza» per il controllo completo.");

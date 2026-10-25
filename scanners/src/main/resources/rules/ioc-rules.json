@@ -111,6 +111,50 @@
       "description": "Blob Base64 lungo che decodifica in un eseguibile (MZ/ELF/PK/CAFEBABE): payload nascosto. La regex e' solo il candidato, la magia decide.",
       "redact": true,
       "special": "executable-blob"
+    },
+    {
+      "id": "script-engine-nashorn",
+      "title": "Riferimento al motore Nashorn",
+      "scopes": ["CLASS_CONST", "CLASS_POOL"],
+      "pattern": "jdk[./]nashorn[./]api[./]scripting",
+      "severity": "LOW",
+      "category": "EXECUTION",
+      "cap": "WEAK",
+      "description": "Riferimento al motore JavaScript Nashorn: alcune mod eseguono script a runtime. Da solo e' solo un indizio (rimosso dal JDK 15+: la sua presenza in una mod moderne'e' insolita).",
+      "redact": false
+    },
+    {
+      "id": "script-engine-graalvm",
+      "title": "Riferimento a GraalVM Polyglot",
+      "scopes": ["CLASS_CONST", "CLASS_POOL"],
+      "pattern": "org[./]graalvm[./]polyglot",
+      "severity": "LOW",
+      "category": "EXECUTION",
+      "cap": "WEAK",
+      "description": "Riferimento all'API polyglot di GraalVM (JS/GraalJS): esecuzione di linguaggi ospiti a runtime. Indizio, non prova: alcune mod legittime la usano.",
+      "redact": false
+    },
+    {
+      "id": "script-engine-jython",
+      "title": "Riferimento a Python integrato (Jython)",
+      "scopes": ["CLASS_CONST", "CLASS_POOL"],
+      "pattern": "(?:org[./]python[./]util[./]PythonInterpreter|org[./]python[./]core[./]PyFunction)",
+      "severity": "LOW",
+      "category": "EXECUTION",
+      "cap": "WEAK",
+      "description": "Riferimento all'interprete Python Jython: payload Python eseguito dentro la JVM. Raro nelle mod legittime.",
+      "redact": false
+    },
+    {
+      "id": "script-engine-luaj",
+      "title": "Riferimento a LuaJ",
+      "scopes": ["CLASS_CONST", "CLASS_POOL"],
+      "pattern": "org[./]luaj[./]vm2[./]",
+      "severity": "LOW",
+      "category": "EXECUTION",
+      "cap": "WEAK",
+      "description": "Riferimento all'interprete Lua LuaJ: script Lua eseguiti a runtime (macro e cheat scriptati). Indizio da valutare col contesto.",
+      "redact": false
     }
   ]
 }

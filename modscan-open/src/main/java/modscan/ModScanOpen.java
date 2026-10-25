@@ -71,6 +71,9 @@ public final class ModScanOpen {
             if (cmd.equals("journal")) {
                 return runJournal(opt);
             }
+            if (cmd.equals("runtime")) {
+                return runRuntime(opt);
+            }
             if (!cmd.equals("scan")) {
                 System.err.println("Comando sconosciuto: " + cmd);
                 usage();
@@ -102,7 +105,7 @@ public final class ModScanOpen {
             }
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("tool", "ModScanOpen");
-            out.put("version", "1.2.0");
+            out.put("version", "1.3.0");
             out.put("openSource", true);
             out.put("results", results);
             String json = JsonCodec.write(out);
@@ -251,6 +254,23 @@ public final class ModScanOpen {
             return r.status == 200 ? 0 : 1;
         }
 
+        /** Sotto-comando (v1.3.0): runtime --mods <dir|auto> [--pid <pid>] [--out file]
+         *  — riga di comando del gioco, mod caricate (latest.log) vs disco, artefatti cheat. */
+        static int runRuntime(Map<String, String> opt) throws IOException {
+            String mods = opt.get("mods");
+            if (mods != null && (mods.isBlank() || "auto".equalsIgnoreCase(mods))) {
+                mods = null; // rilevamento automatico dal processo javaw
+            }
+            OpenApi.Response r = OpenRuntime.check(mods, opt.get("pid"));
+            String outFile = opt.get("out");
+            if (outFile != null) {
+                Files.writeString(Path.of(outFile), r.body, StandardCharsets.UTF_8);
+                System.err.println("Risultato salvato in " + outFile);
+            }
+            System.out.println(r.body);
+            return r.status == 200 ? 0 : 1;
+        }
+
         /** Jar dell'agent: proprietà modscan.agent, poi a fianco del nostro jar, poi target di sviluppo. */
         static Path agentJar() {
             String prop = System.getProperty("modscan.agent");
@@ -367,7 +387,7 @@ public final class ModScanOpen {
         }
 
         static void usage() {
-            System.out.println("ModScanOpen 1.2.0 - scansioni mod, open source (MIT), offline\n"
+            System.out.println("ModScanOpen 1.3.0 - scansioni mod, open source (MIT), offline\n"
                     + "\n"
                     + "  scan --jar <file.jar>              analizza un file .jar\n"
                     + "  scan --mods <cartella|auto>        analizza tutta la cartella delle mod (auto: dal processo javaw)\n"
@@ -377,11 +397,16 @@ public final class ModScanOpen {
                     + "                                     con --mods le mod verificate e le librerie note non vengono dumpate\n"
                     + "  journal [--mods <cartella|auto>] [--pid <pid>] [--after <data|ms>] [--usn]\n"
                     + "                                     mod aggiunte/modificate dopo l'avvio di Minecraft\n"
+                    + "  runtime [--mods <cartella|auto>] [--pid <pid>]\n"
+                    + "                                     riga di comando del gioco (javaagent/tweakClass),\n"
+                    + "                                     mod caricate (latest.log) vs mod su disco,\n"
+                    + "                                     artefatti noti di cheat client\n"
                     + "      [--out file.json]              salva l'esito JSON su file\n");
             System.out.println("Esempi:");
             System.out.println("  java -jar ModScanOpen.jar scan --jar UnSospetto.jar");
             System.out.println("  java -jar ModScanOpen.jar scan --mods auto --out results.json");
             System.out.println("  java -jar ModScanOpen.jar journal --mods auto --usn --out journal.json");
+            System.out.println("  java -jar ModScanOpen.jar runtime --mods auto --out runtime.json");
         }
 
         static String message(Exception e) {

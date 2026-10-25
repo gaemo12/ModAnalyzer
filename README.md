@@ -37,7 +37,7 @@ Viene inviato solo l'hash SHA-1 del file, mai il file né percorsi né dati uten
 ## Struttura repo
 
 ```
-pom.xml              parent Maven (modanalyzer-parent 1.0.0)
+pom.xml              parent Maven (modanalyzer-parent 1.3.0)
 common/              DTO / codec JSON condivisi (solo JDK)
 scanners/            motore di scansione (JDK + ASM)
 modscan-open/        app ModScanOpen (JavaFX) + UI web in resources/ui
@@ -68,6 +68,77 @@ Output:
 
 Scarica la versione già buildata dalle **[Release](../../releases)**:
 `ModScanOpen.zip` → scompatta → avvia `ModScanOpen.exe`.
+
+## Rilevamento (v1.3.0)
+
+Screening SS orientato al **confronto runtime**: cosa gira davvero rispetto a
+cosa c'è su disco, più firme cheat sui dump e anti-spoofing dei metadati.
+
+### Confronto runtime (nuova card "Runtime" + CLI `runtime`)
+
+- **Mod caricate vs mod su disco**: parsing di `logs/latest.log` (Fabric/Quilt
+  per id, Forge per nome file) e confronto con gli id dichiarati dai jar della
+  cartella mods, **JiJ annidati inclusi** (profondità 3). Una mod caricata a
+  runtime senza nessun jar su disco è il segnale classico del client ghost
+  iniettato: MEDIUM, HIGH se l'id combacia con un indicatore di cheat noto.
+  Anti-FP: builtin del loader (`minecraft`, `java`, `fabricloader`, …)
+  esclusi, mod disabilitate/mai caricate riportate solo come nota, e un log
+  più vecchio dell'avvio del gioco viene marcato "sessione precedente" con
+  severità declassata.
+- **Riga di comando del processo di gioco**: flag tipici dei ghost client —
+  `-javaagent` (HIGH), `-Xbootclasspath` (HIGH), `-Djava.system.class.loader`
+  (HIGH), `--tweakClass` non standard (MEDIUM; i tweaker storici di
+  Forge/OptiFine/LiteLoader non generano finding), classpath con voci fuori
+  dai launcher noti (MEDIUM), JDWP e `-XX:+DisableAttachMechanism` (MEDIUM).
+- **Artefatti noti di cheat client** nella `.minecraft` (Meteor, Future, Vape,
+  RusherHack, LiquidBounce, …): pattern in `rules/cheat-artifacts.json`
+  (dati, non codice), solo nomi di cartelle/file, **mai il contenuto**
+  (privacy), severità MEDIUM come indizio da confermare.
+
+Nuova rotta `GET /api/mods/runtime`, sottocomando CLI
+`runtime [--mods <dir|auto>] [--pid <pid>] [--out file.json]`, card GUI che
+parte in automatico dopo il controllo integrità. Il JSON di `scan` resta
+invariato.
+
+### Memory-dump: match contro firme di cheat noti
+
+Le classi del dump (incluse quelle "bypassed", senza origine su disco) vengono
+confrontate con gli indicatori di cheat client già usati per la cartella
+(`QUICK_FLAG_PREFIXES`), con matching **per segmento di package** (più stretto
+del quick-flag sui nomi delle voci: `refill` non matcha `PotionRefilling`).
+Esiti aggregati per famiglia nel nuovo campo `memoryScope.cheatMatches` e un
+finding HIGH `mem-cheat-signature`. Scope dump invariato (v1.2.0): solo gioco
++ mod non verificate, retransform a blocchi.
+
+### Anti-spoofing dei metadati
+
+- **Id dichiarato contro quick-flag**: l'id in `fabric.mod.json` /
+  `mods.toml` / `mcmod.info` ora viene controllato contro gli indicatori di
+  cheat noti (prima solo i nomi delle voci del jar: un jar minimale con un
+  solo id sfuggiva). Finding SUSPICIOUS con motivo esplicito.
+- **Build non ufficiale di una mod nota**: se una mod dichiara il nome di una
+  mod molto diffusa (Sodium, JEI, Create, …) ma l'hash non risulta su
+  Modrinth/Megabase, viene marcata `spoofSuspect` con nota esplicita
+  ("possibile build alterata o rename"); lo stato resta UNVERIFIED, mai
+  verdict inventati. Match esatto sul nome, mai per sottostringa.
+
+### Motore
+
+- **JiJ più profondi**: scansione ricorsiva dei jar annidati da profondità 2 /
+  64 MB a **3 / 128 MB** (le librerie dentro Fabric API annidano a loro
+  volta); il tetto anti zip-bomb resta.
+- **4 regole IOC dati per script engine a runtime** (Nashorn, GraalVM
+  Polyglot, Jython, LuaJ; severità LOW, ambito constant pool): esecuzione di
+  script dentro la mod come indizio. Rhino escluso di proposito (KubeJS e
+  affini sono legittimi); SpEL/Groovy/BeanShell erano già coperti
+  dall'InjectionAnalyzer.
+- **Meno falsi positivi**: le stringhe di versione nel `META-INF/MANIFEST.MF`
+  (es. `21.0.12.1` del JDK) non matchano più come "IP hardcodati" — il
+  manifest è metadato, stesso principio delle regole IOC (trovato nello smoke
+  test di questa release).
+- Self-test eseguibili: `scripts/run-selftests.bat` — in più il nuovo
+  `RuntimeSelfTest` copre log-vs-disco (ghost, builtin, JiJ, log vecchio),
+  riga di comando (javaagent, tweakClass, classpath) e artefatti cheat.
 
 ## Rilevamento (v1.2.0)
 

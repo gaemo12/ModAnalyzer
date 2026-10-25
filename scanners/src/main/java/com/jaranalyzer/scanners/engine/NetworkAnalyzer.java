@@ -245,11 +245,15 @@ implements JarAnalyzer {
     }
 
     private void scanStringForNetworkIndicators(String s, String location, List<String> ips, List<String> urls, List<String> domains, List<String> ports) {
+        // MANIFEST = metadati: lì "21.0.12.1" è una versione JDK, non un IPv4
+        // (stesso principio delle regole IOC: mai finding dai metadati).
+        boolean manifest = location != null
+                && location.toUpperCase(Locale.ROOT).startsWith("META-INF/MANIFEST.MF");
         Matcher ipMatcher = IP_PATTERN.matcher(s);
         while (ipMatcher.find()) {
             String entry;
             String ip = ipMatcher.group(1);
-            if (this.isPrivateIP(ip) || ips.size() >= 20 || ips.contains(entry = ip + " (in: " + location + ")")) continue;
+            if (manifest || this.isPrivateIP(ip) || ips.size() >= 20 || ips.contains(entry = ip + " (in: " + location + ")")) continue;
             ips.add(entry);
         }
         Matcher urlMatcher = URL_PATTERN.matcher(s);

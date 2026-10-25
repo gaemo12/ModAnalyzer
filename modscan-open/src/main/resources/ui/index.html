@@ -91,6 +91,16 @@
       <div class="ph" id="jrnl-ph" style="margin:10px 22px 0">Pronto — usa la cartella mods corrente o la rileva da javaw</div>
       <div id="jrnl-out"></div>
     </div>
+    <div class="card" style="margin-top:18px" aria-label="Runtime del gioco">
+      <div class="mfold">
+        <div class="path"><span class="pic"><svg class="ic" style="width:22px;height:22px"><use href="#i-cpu"/></svg></span>
+          <div><code id="rt-game">Nessun controllo eseguito</code><small id="rt-note">Confronto runtime: riga di comando del processo di gioco (javaagent, tweakClass, classpath), mod caricate secondo logs/latest.log vs jar su disco (JiJ inclusi) e artefatti noti di cheat client nella .minecraft. Solo nomi e flag, mai contenuto dei file.</small></div></div>
+        <div class="row">
+          <button class="btn" id="btn-rt" type="button"><svg class="ic"><use href="#i-shield"/></svg>Controlla runtime</button></div>
+      </div>
+      <div class="ph" id="rt-ph" style="margin:10px 22px 0">Pronto — usa la cartella mods corrente o la rileva da javaw</div>
+      <div id="rt-out"></div>
+    </div>
     <div class="card" style="margin-top:18px" aria-label="Memory dump">
       <div class="mfold">
         <div class="path"><span class="pic"><svg class="ic" style="width:22px;height:22px"><use href="#i-cpu"/></svg></span>
@@ -126,6 +136,7 @@
 <script src="js/jar.js"></script>
 <script src="js/mods.js"></script>
 <script src="js/journal.js"></script>
+<script src="js/runtime.js"></script>
 <script src="js/mem.js"></script>
 <script src="js/save-file.js"></script>
 </body>

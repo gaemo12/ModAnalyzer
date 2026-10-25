@@ -32,10 +32,11 @@ implements JarAnalyzer {
     private static final long MAX_ENTRY_SIZE = 0x500000L;
     /** Campione iniziale letto dalle entry oversize invece di saltarle in silenzio (Fase 2). */
     private static final long SAMPLE_HEAD_BYTES = 1L * 1024 * 1024;
-    /** Profondità massima di ricorsione nei JAR annidati (Fase 3). */
-    private static final int MAX_NESTED_DEPTH = 2;
+    /** Profondità massima di ricorsione nei JAR annidati (v1.3.0: 3, i JiJ di
+     *  librerie dentro Fabric API annidano a loro volta). */
+    private static final int MAX_NESTED_DEPTH = 3;
     /** Tetto totale ai byte annidati scompattati per archivio (anti zip-bomb). */
-    private static final long MAX_NESTED_TOTAL_BYTES = 64L * 1024 * 1024;
+    private static final long MAX_NESTED_TOTAL_BYTES = 128L * 1024 * 1024;
     private static final Set<String> SUSPICIOUS_EXTENSIONS = Set.of(".exe", ".dll", ".bat", ".sh", ".ps1",
             ".so", ".dylib", ".cmd", ".vbs", ".scr", ".msi");
     private final SignatureSet signatures;

@@ -16,6 +16,9 @@ import java.util.Map;
  *   <li>{@code GET /api/mods/locate} — ricerca della cartella mods tra i processi javaw attivi</li>
  *   <li>{@code GET /api/mods/journal?path=…&pid=…&after=…&usn=1} — mod aggiunte o
  *   modificate dopo l'avvio di Minecraft (orari dei file + journal USN best-effort)</li>
+ *   <li>{@code GET /api/mods/runtime?path=…&pid=…} — confronto runtime (v1.3.0):
+ *   riga di comando del processo di gioco, mod caricate secondo logs/latest.log
+ *   vs jar su disco, artefatti noti di cheat client nella cartella del gioco</li>
  *   <li>{@code GET /api/health} — controllo che il bridge risponda</li>
  *   <li>{@code POST /api/mem/dump} — memory-dump opt-in (pid=…|auto, skip=1):
  *   dump del bytecode via agent (mod verificate e librerie note escluse),
@@ -69,6 +72,8 @@ public final class OpenApi {
                 case "GET /api/mods/journal":
                     return OpenJournal.check(params.get("path"), params.get("pid"),
                             params.get("after"), params.get("usn"));
+                case "GET /api/mods/runtime":
+                    return OpenRuntime.check(params.get("path"), params.get("pid"));
                 case "GET /api/mem/processes":
                     return memProcesses();
                 case "GET /api/mem/progress":
