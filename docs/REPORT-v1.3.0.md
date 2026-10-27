@@ -22,10 +22,9 @@ stati verificati. La release è pubblicata con i quattro allegati richiesti:
 - `ModScanOpen.exe` — **installer per-utente** (jpackage/WiX), non portable;
 - `SHA256SUMS.txt` — hash SHA-256 dei tre file.
 
-La versione portable consigliata è lo **zip**. L'installer è firmato solo dal
-punto di vista del pacchetto MSI, **non dispone di una firma Authenticode**:
-Windows SmartScreen può mostrare un avviso. Gli hash permettono di verificare
-il download.
+La versione portable consigliata è lo **zip**. L'installer **non dispone di
+una firma Authenticode**: Windows SmartScreen può mostrare un avviso. Gli hash
+permettono di verificare il download.
 
 ## 2. Cosa è stato integrato
 
@@ -165,4 +164,5 @@ scripts\package-modscan-open.bat
 ```
 
 Il pacchetto è stato prodotto con JDK 21.0.12.101-hotspot e WiX Toolset 3.14.1
-(binari portatili, usati solo in build). Il runtime Java è incluso via jlink.
+(binari portatili distribuiti senza firma Authenticode, usati solo in build,
+non inclusi negli artefatti). Il runtime Java è incluso via jlink.
