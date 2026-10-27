@@ -14,17 +14,19 @@ import java.util.zip.ZipFile;
  * Solo parsing locale: nessuna verifica Modrinth qui (resta allo Staff).
  */
 public final class ModMetadata {
-    public record Info(String modName, String author, boolean knownAuthor, String source) {
+    public record Info(String modName, String author, boolean knownAuthor, String source, String id) {
         public static Info empty() {
-            return new Info(null, null, false, "unknown");
+            return new Info(null, null, false, "unknown", null);
         }
     }
 
     private static final Pattern FABRIC_AUTHORS = Pattern.compile("\"authors\"\\s*:\\s*\\[(.*?)]", Pattern.DOTALL);
     private static final Pattern FABRIC_NAME = Pattern.compile("\"name\"\\s*:\\s*\"([^\"]+)\"");
+    private static final Pattern FABRIC_ID = Pattern.compile("\"id\"\\s*:\\s*\"([^\"]{1,100})\"");
     private static final Pattern FABRIC_STRING = Pattern.compile("\"([^\"]+)\"");
     private static final Pattern TOML_AUTHORS = Pattern.compile("authors\\s*=\\s*\"([^\"]+)\"");
     private static final Pattern TOML_DISPLAY_NAME = Pattern.compile("displayName\\s*=\\s*\"([^\"]+)\"");
+    private static final Pattern TOML_ID = Pattern.compile("modId\\s*=\\s*\"([^\"]{1,100})\"");
 
     private ModMetadata() {
     }
@@ -35,14 +37,14 @@ public final class ModMetadata {
             ZipEntry fabric = zip.getEntry("fabric.mod.json");
             if (fabric != null) {
                 Info info = fabricLike(text(zip, fabric), "fabric");
-                if (info.knownAuthor() || info.modName() != null) {
+                if (info.knownAuthor() || info.modName() != null || info.id() != null) {
                     return info;
                 }
             }
             ZipEntry quilt = zip.getEntry("quilt.mod.json");
             if (quilt != null) {
                 Info info = fabricLike(text(zip, quilt), "quilt");
-                if (info.knownAuthor() || info.modName() != null) {
+                if (info.knownAuthor() || info.modName() != null || info.id() != null) {
                     return info;
                 }
             }
@@ -52,7 +54,7 @@ public final class ModMetadata {
                     continue;
                 }
                 Info info = forgeToml(text(zip, toml));
-                if (info.knownAuthor()) {
+                if (info.knownAuthor() || info.id() != null) {
                     return info;
                 }
             }
@@ -71,9 +73,14 @@ public final class ModMetadata {
 
     static Info fabricLike(String json, String source) {
         String modName = null;
+        String id = null;
         Matcher name = FABRIC_NAME.matcher(json);
         if (name.find()) {
             modName = name.group(1).trim();
+        }
+        Matcher idMatcher = FABRIC_ID.matcher(json);
+        if (idMatcher.find()) {
+            id = idMatcher.group(1).trim();
         }
         Matcher block = FABRIC_AUTHORS.matcher(json);
         if (block.find()) {
@@ -87,15 +94,16 @@ public final class ModMetadata {
                 names.add(v);
             }
             if (!names.isEmpty()) {
-                return new Info(modName, String.join(", ", names), true, source);
+                return new Info(modName, String.join(", ", names), true, source, id);
             }
         }
-        return new Info(modName, null, false, source);
+        return new Info(modName, null, false, source, id);
     }
 
     static Info forgeToml(String toml) {
         String author = null;
         String modName = null;
+        String id = null;
         boolean known = false;
         Matcher am = TOML_AUTHORS.matcher(toml);
         if (am.find() && !am.group(1).isBlank()) {
@@ -106,7 +114,11 @@ public final class ModMetadata {
         if (nm.find()) {
             modName = nm.group(1).trim();
         }
-        return new Info(modName, author, known, "forge");
+        Matcher im = TOML_ID.matcher(toml);
+        if (im.find()) {
+            id = im.group(1).trim();
+        }
+        return new Info(modName, author, known, "forge", id);
     }
 
     static Info manifest(String content) {
@@ -115,7 +127,7 @@ public final class ModMetadata {
             vendor = field(content, "Specification-Vendor");
         }
         if (vendor != null && !vendor.isBlank()) {
-            return new Info(null, vendor.trim(), true, "manifest");
+            return new Info(null, vendor.trim(), true, "manifest", null);
         }
         return Info.empty();
     }

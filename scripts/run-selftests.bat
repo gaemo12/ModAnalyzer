@@ -15,7 +15,7 @@ if errorlevel 1 ( echo Compilazione fallita. & exit /b 1 )
 echo 2/3 Compilo i self-test...
 if exist "%TEMP%\selftests" rmdir /s /q "%TEMP%\selftests"
 mkdir "%TEMP%\selftests"
-"%JDIR%\bin\javac.exe" -cp "%CP%" -d "%TEMP%\selftests" scanners\src\test\java\RuleEngineSelfTest.java scanners\src\test\java\ArchiveIntegritySelfTest.java scanners\src\test\java\ModsTimelineSelfTest.java scanners\src\test\java\RuntimeSelfTest.java memagent\src\test\java\MemAgentSelfTest.java modscan-open\src\test\java\modscan\MemSkipSelfTest.java
+"%JDIR%\bin\javac.exe" -cp "%CP%" -d "%TEMP%\selftests" scanners\src\test\java\RuleEngineSelfTest.java scanners\src\test\java\ArchiveIntegritySelfTest.java scanners\src\test\java\ModsTimelineSelfTest.java scanners\src\test\java\RuntimeSelfTest.java scanners\src\test\java\ModsAuditSelfTest.java scanners\src\test\java\CrashLogsSelfTest.java scanners\src\test\java\com\jaranalyzer\scanners\engine\UsnJournalSelfTest.java memagent\src\test\java\MemAgentSelfTest.java modscan-open\src\test\java\modscan\MemSkipSelfTest.java
 if errorlevel 1 ( echo Compilazione test fallita. & exit /b 1 )
 
 echo 3/3 Eseguo i self-test...
@@ -27,6 +27,12 @@ if errorlevel 1 ( echo ArchiveIntegritySelfTest FALLITO. & exit /b 1 )
 if errorlevel 1 ( echo ModsTimelineSelfTest FALLITO. & exit /b 1 )
 "%JDIR%\bin\java.exe" -cp "%TEMP%\selftests;%CP%" RuntimeSelfTest
 if errorlevel 1 ( echo RuntimeSelfTest FALLITO. & exit /b 1 )
+"%JDIR%\bin\java.exe" -cp "%TEMP%\selftests;%CP%" ModsAuditSelfTest
+if errorlevel 1 ( echo ModsAuditSelfTest FALLITO. & exit /b 1 )
+"%JDIR%\bin\java.exe" -cp "%TEMP%\selftests;%CP%" CrashLogsSelfTest
+if errorlevel 1 ( echo CrashLogsSelfTest FALLITO. & exit /b 1 )
+"%JDIR%\bin\java.exe" -cp "%TEMP%\selftests;%CP%" com.jaranalyzer.scanners.engine.UsnJournalSelfTest
+if errorlevel 1 ( echo UsnJournalSelfTest FALLITO. & exit /b 1 )
 "%JDIR%\bin\java.exe" -cp "%TEMP%\selftests;%CP%" modscan.MemSkipSelfTest
 if errorlevel 1 ( echo MemSkipSelfTest FALLITO. & exit /b 1 )
 "%JDIR%\bin\java.exe" -Djdk.attach.allowAttachSelf=true -cp "%TEMP%\selftests;%CP%" MemAgentSelfTest memagent\target\MemAgent.jar

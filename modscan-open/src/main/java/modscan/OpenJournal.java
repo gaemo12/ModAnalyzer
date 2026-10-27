@@ -1,6 +1,7 @@
 package modscan;
 
 import com.jaranalyzer.common.JsonCodec;
+import com.jaranalyzer.scanners.engine.MinecraftPathResolver;
 import com.jaranalyzer.scanners.engine.ModsTimeline;
 import com.jaranalyzer.scanners.engine.ProcessInventory;
 import com.jaranalyzer.scanners.engine.Sanitizer;
@@ -44,7 +45,7 @@ final class OpenJournal {
         try {
             Path dir;
             if (pathParam != null && !pathParam.isBlank()) {
-                dir = Path.of(pathParam.trim());
+                dir = MinecraftPathResolver.resolveModsDir(Path.of(pathParam.trim()));
             } else {
                 dir = autoLocate();
             }

@@ -5,13 +5,13 @@ import com.jaranalyzer.scanners.Severity;
 import com.jaranalyzer.scanners.engine.CheatArtifacts;
 import com.jaranalyzer.scanners.engine.GameCommandLine;
 import com.jaranalyzer.scanners.engine.LoadedModsLog;
+import com.jaranalyzer.scanners.engine.MinecraftPathResolver;
 import com.jaranalyzer.scanners.engine.Sanitizer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -41,15 +41,15 @@ final class OpenRuntime {
         try {
             Path modsDir;
             if (pathParam != null && !pathParam.isBlank()) {
-                modsDir = Path.of(pathParam.trim());
+                modsDir = MinecraftPathResolver.resolveModsDir(Path.of(pathParam.trim()));
             } else {
-                modsDir = OpenJournal.autoLocate();
+                modsDir = MinecraftPathResolver.resolveModsDir(OpenJournal.autoLocate());
             }
             if (modsDir == null || !Files.isDirectory(modsDir)) {
                 return bad("Cartella mods non valida",
                         "Indica path=… oppure avvia Minecraft per il rilevamento automatico.");
             }
-            Path gameDir = modsDir.getParent();
+            Path gameDir = MinecraftPathResolver.gameDirOfMods(modsDir);
 
             Map<String, Object> game = OpenJournal.findGame(pidParam);
             long gameStart = game == null ? 0L : ((Number) game.get("start")).longValue();
@@ -62,6 +62,7 @@ final class OpenRuntime {
             out.put("cmdFindings", cmdFindings);
             out.put("logDiff", logDiff(gameDir, modsDir, gameStart));
             out.put("artifacts", artifacts(gameDir));
+            out.put("crashLogs", crashLogs(gameDir));
             out.put("counts", counts(out));
             return new OpenApi.Response(200, JsonCodec.write(out));
         } catch (Exception e) {
@@ -157,16 +158,8 @@ final class OpenRuntime {
 
     /** Primo quick-flag contenuto nell'id (stessa lista del controllo cartella). */
     static String cheatFlagOf(String id) {
-        if (id == null || id.isEmpty()) {
-            return null;
-        }
-        String lower = id.toLowerCase(Locale.ROOT);
-        for (String flag : OpenMods.quickFlagPrefixes()) {
-            if (!flag.isEmpty() && lower.contains(flag)) {
-                return flag;
-            }
-        }
-        return null;
+        return com.jaranalyzer.scanners.engine.ModsFolderAudit.flagInId(id,
+                java.util.List.of(OpenMods.quickFlagPrefixes()));
     }
 
     /* ------------------------------------------------------------ artefatti */
@@ -191,6 +184,29 @@ final class OpenRuntime {
         return out;
     }
 
+    /* ------------------------------------------------------------ crash report */
+
+    private static List<Map<String, Object>> crashLogs(Path gameDir) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        try {
+            for (com.jaranalyzer.scanners.engine.CrashLogs.Trace t
+                    : com.jaranalyzer.scanners.engine.CrashLogs.scan(gameDir)) {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("file", t.file());
+                m.put("kind", t.kind());
+                m.put("modified", t.modifiedMillis());
+                m.put("flags", t.flags());
+                out.add(m);
+            }
+        } catch (Exception e) {
+            String m = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            Map<String, Object> err = new LinkedHashMap<>();
+            err.put("error", m);
+            out.add(err);
+        }
+        return out;
+    }
+
     /* ------------------------------------------------------------ riepilogo */
 
     private static Map<String, Object> counts(Map<String, Object> body) {
@@ -203,15 +219,34 @@ final class OpenRuntime {
         }
         Object ld = body.get("logDiff");
         int ghosts = 0;
-        if (ld instanceof Map<?, ?> m && m.get("loadedNotOnDisk") instanceof List<?> l) {
-            ghosts = l.size();
+        int fileGhosts = 0;
+        if (ld instanceof Map<?, ?> m) {
+            if (m.get("loadedNotOnDisk") instanceof List<?> l) {
+                ghosts = l.size();
+            }
+            if (m.get("loadedFilesNotOnDisk") instanceof List<?> l) {
+                fileGhosts = l.size();
+            }
         }
-        int arts = ((List<?>) body.getOrDefault("artifacts", List.of())).size();
+        int arts = 0;
+        for (Object o : (List<?>) body.getOrDefault("artifacts", List.of())) {
+            if (o instanceof Map<?, ?> m && m.get("name") != null) {
+                arts++;
+            }
+        }
+        int crash = 0;
+        for (Object o : (List<?>) body.getOrDefault("crashLogs", List.of())) {
+            if (o instanceof Map<?, ?> m && m.get("flags") instanceof List<?> l && !l.isEmpty()) {
+                crash += l.size();
+            }
+        }
         Map<String, Object> c = new LinkedHashMap<>();
         c.put("cmdFindings", cmd);
         c.put("loadedNotOnDisk", ghosts);
+        c.put("loadedFilesNotOnDisk", fileGhosts);
         c.put("artifacts", arts);
-        c.put("suspects", cmd + ghosts + arts);
+        c.put("crashFlags", crash);
+        c.put("suspects", cmd + ghosts + fileGhosts + arts + crash);
         return c;
     }
 

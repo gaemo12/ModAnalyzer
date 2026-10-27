@@ -147,13 +147,47 @@ public final class UsnJournal {
      */
     public static Read readEvents(String volume, long startUsn, Predicate<String> keep,
             long budgetMillis, int maxEvents) throws AccessDenied {
-        List<Event> out = new ArrayList<>();
-        boolean[] truncated = { false };
-        String[] cur = new String[4]; // usn, file, reason, time
-        runRead(volume, startUsn, budgetMillis, line -> {
-            String t = line.trim();
+        EventParser parser = new EventParser(keep, maxEvents);
+        runRead(volume, startUsn, budgetMillis, parser::accept);
+        return parser.result();
+    }
+
+    /**
+     * Parser puro dell'output di {@code fsutil usn readjournal} (usato anche dai
+     * self-test). Gestisce il record su più righe e ignora {@code File name
+     * length}: prima della v1.3.2 quel campo sovrascriveva il nome del file e
+     * tutti gli eventi venivano scartati.
+     */
+    static Read parseEvents(List<String> lines, Predicate<String> keep, int maxEvents) {
+        EventParser parser = new EventParser(keep, maxEvents);
+        for (String line : lines) {
+            if (!parser.accept(line)) {
+                break;
+            }
+        }
+        return parser.result();
+    }
+
+    /** Accumula un record per volta; si ferma quando raggiunge {@code maxEvents}. */
+    static final class EventParser {
+        private final Predicate<String> keep;
+        private final int maxEvents;
+        private final List<Event> out = new ArrayList<>();
+        private String usn;
+        private String file;
+        private String reason;
+        private String time;
+        private boolean truncated;
+
+        EventParser(Predicate<String> keep, int maxEvents) {
+            this.keep = keep;
+            this.maxEvents = maxEvents;
+        }
+
+        boolean accept(String line) {
+            String t = line == null ? "" : line.trim();
             if (t.isEmpty()) {
-                clear(cur);
+                clear();
                 return true;
             }
             int c = t.indexOf(':');
@@ -163,32 +197,36 @@ public final class UsnJournal {
             String label = t.substring(0, c).trim().toLowerCase(Locale.ROOT);
             String value = t.substring(c + 1).trim();
             if (label.equals("usn")) {
-                clear(cur);
-                cur[0] = value;
-            } else if (label.startsWith("file name")) {
-                cur[1] = value;
-            } else if (label.startsWith("reason")) {
-                cur[2] = value;
-            } else if (label.startsWith("time stamp")) {
-                cur[3] = value;
-                if (cur[1] != null && keep.test(cur[1])) {
-                    out.add(new Event(parseLong(cur[0]), cur[1], cur[2] == null ? "" : cur[2], parseTime(value)));
+                clear();
+                usn = value;
+            } else if (label.equals("file name") || label.equals("nome file")) {
+                file = value.isEmpty() ? null : value;
+            } else if (label.equals("reason") || label.equals("motivo")) {
+                reason = value;
+            } else if (label.equals("time stamp") || label.equals("data/ora")) {
+                time = value;
+                if (file != null && keep.test(file)) {
+                    out.add(new Event(parseLong(usn), file, reason == null ? "" : reason, parseTime(time)));
                     if (out.size() >= maxEvents) {
-                        truncated[0] = true;
+                        truncated = true;
                         return false;
                     }
                 }
             }
+            // Ogni altra etichetta (incluso "File name length") viene ignorata.
             return true;
-        });
-        return new Read(List.copyOf(out), truncated[0]);
-    }
+        }
 
-    private static void clear(String[] cur) {
-        cur[0] = null;
-        cur[1] = null;
-        cur[2] = null;
-        cur[3] = null;
+        private void clear() {
+            usn = null;
+            file = null;
+            reason = null;
+            time = null;
+        }
+
+        Read result() {
+            return new Read(List.copyOf(out), truncated);
+        }
     }
 
     private static Long firstTimeAt(String volume, long usn, long budgetMillis) throws AccessDenied {

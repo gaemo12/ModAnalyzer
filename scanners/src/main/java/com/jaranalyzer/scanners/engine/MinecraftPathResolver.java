@@ -1,5 +1,7 @@
 package com.jaranalyzer.scanners.engine;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -135,6 +137,81 @@ public final class MinecraftPathResolver {
         String g = trimSeparators(gameDir);
         String sep = g.contains("\\") && !g.contains("/") ? "\\" : "/";
         return g + sep + "mods";
+    }
+
+    /**
+     * Normalizza il percorso scelto dall'utente: se ha selezionato la cartella
+     * del gioco (contiene {@code mods/} e i marcatori di una game dir) si usa
+     * {@code mods/}; altrimenti il percorso resta quello indicato. Non scende
+     * nelle sottocartelle {@code mods/<versione>} perché lì i jar possono
+     * essere organizzati per profilo.
+     */
+    public static Path resolveModsDir(Path selected) {
+        if (selected == null) {
+            return null;
+        }
+        Path abs = selected.toAbsolutePath().normalize();
+        if (isModsDirName(abs)) {
+            return abs;
+        }
+        Path mods = abs.resolve("mods");
+        if (looksLikeGameDir(abs) && Files.isDirectory(mods)) {
+            return mods;
+        }
+        return abs;
+    }
+
+    /**
+     * Risale dalla cartella mods alla game dir:
+     * <ul>
+     *   <li>{@code <istanza>/mods} → {@code <istanza>};</li>
+     *   <li>{@code <istanza>/mods/<profilo>} → {@code <istanza>};</li>
+     *   <li>cartella custom dentro l'istanza → la prima antenata con i
+     *       marcatori di gioco ({@code logs/}, {@code options.txt}, …).</li>
+     * </ul>
+     * Fallback: il padre, come prima della v1.3.2.
+     */
+    public static Path gameDirOfMods(Path modsDir) {
+        if (modsDir == null) {
+            return null;
+        }
+        Path abs = modsDir.toAbsolutePath().normalize();
+        Path parent = abs.getParent();
+        if (isModsDirName(abs)) {
+            return parent;
+        }
+        if (parent != null && isModsDirName(parent) && looksLikeGameDir(parent.getParent())) {
+            return parent.getParent();
+        }
+        if (looksLikeGameDir(abs)) {
+            return abs;
+        }
+        if (looksLikeGameDir(parent)) {
+            return parent;
+        }
+        Path grandParent = parent == null ? null : parent.getParent();
+        if (looksLikeGameDir(grandParent)) {
+            return grandParent;
+        }
+        return parent;
+    }
+
+    /** Marcatori di una cartella di gioco (solo nomi, nessun contenuto). */
+    public static boolean looksLikeGameDir(Path dir) {
+        if (dir == null || !Files.isDirectory(dir)) {
+            return false;
+        }
+        return Files.isDirectory(dir.resolve("logs"))
+                || Files.isDirectory(dir.resolve("crash-reports"))
+                || Files.isDirectory(dir.resolve("saves"))
+                || Files.isRegularFile(dir.resolve("options.txt"))
+                || Files.isRegularFile(dir.resolve("launcher_profiles.json"))
+                || Files.isRegularFile(dir.resolve("launcher_profiles_microsoft_store.json"));
+    }
+
+    private static boolean isModsDirName(Path p) {
+        Path name = p.getFileName();
+        return name != null && "mods".equalsIgnoreCase(name.toString());
     }
 
     // ---------------------------------------------------------------- interni

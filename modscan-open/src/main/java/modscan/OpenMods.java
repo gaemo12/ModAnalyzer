@@ -2,6 +2,7 @@ package modscan;
 
 import com.jaranalyzer.common.JsonCodec;
 import com.jaranalyzer.scanners.engine.MinecraftPathResolver;
+import com.jaranalyzer.scanners.engine.ModsFolderAudit;
 import com.jaranalyzer.scanners.engine.ProcessInventory;
 import java.io.File;
 import java.io.IOException;
@@ -101,18 +102,77 @@ final class OpenMods {
             return new OpenApi.Response(400, JsonCodec.write(Map.of(
                     "error", "Bad Request", "message", "La cartella specificata non esiste o non è accessibile.")));
         }
+        File resolved = MinecraftPathResolver.resolveModsDir(folder.toPath()).toFile();
+        if (!resolved.equals(folder) && resolved.isDirectory()) {
+            folder = resolved; // l'utente ha scelto la game dir: si analizza la sua cartella mods
+        }
         try {
             List<Map<String, Object>> mods = folderCached(folder);
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("path", folder.getAbsolutePath().replace("\\", "/"));
             out.put("count", mods.size());
             out.put("mods", mods);
+            out.put("audit", auditJson(ModsFolderAudit.audit(folder.toPath(), auditEntries(mods),
+                    List.of(QUICK_FLAG_PREFIXES))));
             return new OpenApi.Response(200, JsonCodec.write(out));
         } catch (Exception e) {
             String m = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
             return new OpenApi.Response(500, JsonCodec.write(Map.of(
                     "error", "Internal Server Error", "message", "Scansione cartella fallita: " + m)));
         }
+    }
+
+    /* ------------------------------------------------------------ audit della cartella */
+
+    private static List<ModsFolderAudit.Entry> auditEntries(List<Map<String, Object>> mods) {
+        List<ModsFolderAudit.Entry> out = new ArrayList<>();
+        for (Map<String, Object> m : mods) {
+            out.add(new ModsFolderAudit.Entry(
+                    string(m.get("fileName")),
+                    string(m.get("modId")),
+                    m.get("declaredName") != null ? string(m.get("declaredName")) : string(m.get("modName")),
+                    string(m.get("nonJarKind"))));
+        }
+        return out;
+    }
+
+    private static Map<String, Object> auditJson(ModsFolderAudit.Report r) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("issues", r.issues());
+        out.put("disabled", r.disabled());
+        List<Map<String, Object>> suspicious = new ArrayList<>();
+        for (ModsFolderAudit.DisabledFinding d : r.suspiciousDisabled()) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("file", d.fileName());
+            m.put("reason", d.reason());
+            suspicious.add(m);
+        }
+        out.put("suspiciousDisabled", suspicious);
+        out.put("disguised", r.disguised());
+        List<Map<String, Object>> dups = new ArrayList<>();
+        for (ModsFolderAudit.DuplicateId d : r.duplicateIds()) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", d.id());
+            m.put("files", d.files());
+            dups.add(m);
+        }
+        out.put("duplicateIds", dups);
+        List<Map<String, Object>> mism = new ArrayList<>();
+        for (ModsFolderAudit.Mismatch m : r.mismatches()) {
+            Map<String, Object> x = new LinkedHashMap<>();
+            x.put("file", m.fileName());
+            x.put("id", m.declaredId());
+            x.put("name", m.declaredName());
+            x.put("note", m.note());
+            mism.add(x);
+        }
+        out.put("mismatches", mism);
+        out.put("notes", r.notes());
+        return out;
+    }
+
+    private static String string(Object v) {
+        return v == null ? null : String.valueOf(v);
     }
 
     /* ------------------------------------------------------------ cache breve della cartella */
@@ -266,6 +326,10 @@ final class OpenMods {
             // SHA-1 non calcolabile: la verifica online salta questo file
         }
 
+        String nonJar = ModsFolderAudit.nonJarMagic(f.toPath());
+        if (nonJar != null) {
+            m.put("nonJarKind", nonJar);
+        }
         String modName = null, author = null, fabric = null, toml = null, mcmod = null;
         String modId = null, idFlag = null;
         boolean flagged = false;
@@ -289,7 +353,9 @@ final class OpenMods {
                 }
             }
         } catch (Exception e) {
-            m.put("verificationNote", "Il file non si apre come mod (.jar): potrebbe essere danneggiato.");
+            m.put("verificationNote", nonJar != null
+                    ? "Il file ha estensione .jar ma è " + nonJar + ": possibile file rinominato."
+                    : "Il file non si apre come mod (.jar): potrebbe essere danneggiato.");
             m.put("status", "SUSPICIOUS");
             return m;
         }
@@ -316,6 +382,9 @@ final class OpenMods {
         }
         if (modName != null) {
             m.put("modName", modName);
+            /* Il nome dichiarato resta separato da quello che può arrivare da
+               Modrinth: l'audit deve confrontare il file col manifest originale. */
+            m.put("declaredName", modName);
         }
         if (author != null) {
             m.put("author", author);
@@ -323,18 +392,17 @@ final class OpenMods {
         if (modId != null && !modId.isBlank()) {
             m.put("modId", modId);
             /* v1.3.0: il quick-flag controlla anche l'id dichiarato nei metadati,
-               non solo i nomi delle voci (un jar minimale può avere solo l'id). */
-            String idl = modId.toLowerCase(Locale.ROOT);
-            for (String flag : QUICK_FLAG_PREFIXES) {
-                if (!flag.isEmpty() && idl.contains(flag)) {
-                    idFlag = flag;
-                    flagged = true;
-                    break;
-                }
-            }
+               non solo i nomi delle voci (un jar minimale può avere solo l'id).
+               v1.3.2: match conservativo, senza contains su id molto corti. */
+            idFlag = ModsFolderAudit.flagInId(modId, List.of(QUICK_FLAG_PREFIXES));
+            flagged = idFlag != null;
         }
 
-        if (flagged) {
+        if (nonJar != null) {
+            m.put("status", "SUSPICIOUS");
+            m.put("verificationNote", "Il file ha estensione .jar ma è " + nonJar
+                    + ": possibile file rinominato.");
+        } else if (flagged) {
             m.put("status", "SUSPICIOUS");
             m.put("verificationNote", idFlag != null
                     ? "Id della mod («" + modId + "») che combacia con un indicatore di cheat noto ("

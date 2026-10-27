@@ -33,6 +33,44 @@
         $('mods-path').textContent = p || 'Nessuna cartella selezionata';
         $('mods-source').textContent = sourceText || '';
         $('btn-mods-scan').disabled = !p;
+        const audit = $('mods-audit');
+        if (audit) { audit.innerHTML = ''; audit.hidden = true; }
+    }
+
+    /* Controlli strutturali della cartella: id duplicati, .jar camuffati, mod disabilitate. */
+    function renderAudit(a) {
+        const el = $('mods-audit');
+        if (!el) return;
+        if (!a) { el.innerHTML = ''; el.hidden = true; return; }
+        el.hidden = false;
+        const sus = a.suspiciousDisabled || [], dis = a.disguised || [],
+            dups = a.duplicateIds || [], mis = a.mismatches || [], disabled = a.disabled || [];
+        const cap = (list, n) => list.slice(0, n).join('; ') + (list.length > n ? ' …' : '');
+        let h = '';
+        if (sus.length) {
+            h += '<div class="jwarn">' + ic('alert') + '<span><b>' + sus.length + (sus.length === 1 ? ' mod disabilitata contiene' : ' mod disabilitate contengono')
+                + ' indicatori noti:</b> ' + esc(cap(sus.map((x) => x.file + ' (' + x.reason + ')'), 4)) + '</span></div>';
+        }
+        if (dis.length) {
+            h += '<div class="jwarn">' + ic('alert') + '<span><b>' + dis.length + (dis.length === 1 ? ' file .jar non è un archivio valido:' : ' file .jar non sono archivi validi:')
+                + '</b> ' + esc(cap(dis, 4)) + '</span></div>';
+        }
+        if (dups.length) {
+            h += '<div class="ph" style="margin:2px 22px 4px"><b>Id dichiarato da più jar (' + dups.length + '):</b> '
+                + esc(cap(dups.map((d) => d.id + ' → ' + (d.files || []).join(', ')), 4)) + '</div>';
+        }
+        if (mis.length) {
+            h += '<div class="ph" style="margin:2px 22px 4px"><b>Nome file diverso dai metadati (' + mis.length + '):</b> '
+                + esc(cap(mis.map((m) => m.file + ' dichiara ' + (m.name || m.id)), 4)) + '</div>';
+        }
+        if (disabled.length) {
+            h += '<div class="ph" style="margin:2px 22px 4px"><small>Mod disabilitate (non attive, nessun indicatore noto): ' + disabled.length + '.</small></div>';
+        }
+        if (!h) {
+            h = '<div class="ph" style="margin:2px 22px 0"><small>Struttura della cartella: nessun id duplicato, nessun jar camuffato, nessuna mod disabilitata sospetta.</small></div>';
+        }
+        (a.notes || []).forEach((n) => { h += '<div class="ph" style="margin:0 22px 4px"><small>' + esc(n) + '</small></div>'; });
+        el.innerHTML = h;
     }
 
     /* La card "Integrità mod" (journal.js) controlla la stessa cartella. */
@@ -200,6 +238,7 @@
         busy = true;
         $('btn-mods-scan').disabled = true;
         entries = []; filter = 'all'; $('mq').value = '';
+        const auditBox = $('mods-audit'); if (auditBox) { auditBox.innerHTML = ''; auditBox.hidden = true; }
         J.modsBadges.journal = {}; J.modsBadges.gone = []; J.modsBadges.journalMeta = null;
         document.querySelectorAll('#mfil .fl').forEach((x) => x.setAttribute('aria-pressed', x.dataset.f === 'all'));
         updateSum();
@@ -218,6 +257,7 @@
         /* Le righe sono già verificate dal servizio: si mostrano subito (nessuna attesa artificiale per riga). */
         entries = (data.mods || []).map((m) => Object.assign(m, { s: MAP[m.status] || 'unk', ui: { scanning: false, p: 0, step: '', deep: null } }));
         pg.style.width = '100%';
+        renderAudit(data.audit);
         updateSum(); render();
         const c = counts(), n = entries.length;
         ph.textContent = n ? 'Controllo completato — ' + c.ok + ' ufficiali, ' + c.unk + ' non riconosciute, ' + c.bad + ' da controllare' : 'Nessun file .jar trovato';

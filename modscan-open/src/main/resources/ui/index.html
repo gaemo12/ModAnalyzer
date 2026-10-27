@@ -35,7 +35,7 @@
 <header>
   <div class="brand"><svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle class="pr" cx="20" cy="20" r="17" stroke="#8aa4ff" stroke-width="1.5"/><rect x="3" y="3" width="34" height="34" rx="10" fill="#171513" stroke="#3d3733"/><path d="M11.5 20.5l6 6 11-12.5" stroke="#8aa4ff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg><b>ModScanOpen</b></div>
   <nav class="tabs" id="tabs" aria-label="Modalità di scansione"><div class="thumb" id="thumb"></div></nav>
-  <div class="right"><button class="btn sec sm" id="btn-bug" type="button"><svg class="ic"><use href="#i-bug"/></svg>Segnala bug</button><span class="chip" id="version-badge">v1.2.0</span></div>
+  <div class="right"><button class="btn sec sm" id="btn-bug" type="button"><svg class="ic"><use href="#i-bug"/></svg>Segnala bug</button><span class="chip" id="version-badge">v1.3.2</span></div>
 </header>
 
 <main>
@@ -80,6 +80,7 @@
       <div class="cands" id="mods-cands" hidden></div>
       <div class="prog"><span id="mods-pg"></span></div>
       <div class="ph" id="mods-ph" style="margin:10px 22px 0">Pronta per la scansione</div>
+      <div id="mods-audit" style="margin-top:2px"></div>
       <div class="msum"><div><b id="ms0">–</b>mod totali</div><div><b id="ms1">–</b>ufficiali</div><div><b id="ms2">–</b>non riconosciute</div><div><b id="ms3">–</b>da controllare</div><div class="jr"><b id="ms4">–</b>toccate dopo l'avvio</div><div class="bar" id="mbar"><span class="g"></span><span class="m"></span><span class="c"></span></div></div>
     </div>
     <div class="card" style="margin-top:18px" aria-label="Mod aggiunte dopo l'avvio">
@@ -95,7 +96,7 @@
     <div class="card" style="margin-top:18px" aria-label="Runtime del gioco">
       <div class="mfold">
         <div class="path"><span class="pic"><svg class="ic" style="width:22px;height:22px"><use href="#i-cpu"/></svg></span>
-          <div><code id="rt-game">Nessun controllo eseguito</code><small id="rt-note">Confronto runtime: riga di comando del processo di gioco (javaagent, tweakClass, classpath), mod caricate secondo logs/latest.log vs jar su disco (JiJ inclusi) e artefatti noti di cheat client nella .minecraft. Solo nomi e flag, mai contenuto dei file.</small></div></div>
+          <div><code id="rt-game">Nessun controllo eseguito</code><small id="rt-note">Confronto runtime: riga di comando del processo di gioco (javaagent, tweakClass, classpath), mod caricate secondo logs/latest.log vs jar su disco (JiJ inclusi), artefatti noti di cheat client nella .minecraft e tracce JVM rimaste nei crash report/hs_err. Solo nomi e flag, mai contenuto dei file.</small></div></div>
         <div class="row">
           <button class="btn" id="btn-rt" type="button"><svg class="ic"><use href="#i-shield"/></svg>Controlla runtime</button></div>
       </div>

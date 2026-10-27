@@ -33,10 +33,14 @@ ModScanOpen.bat runtime --mods auto
 - `journal [--usn]` riporta anche la storia per file (`journal.files`) e i
   file **spariti** (eliminati o rinominati) dopo l'avvio del gioco
   (`journal.gone`, `counts.gone`); senza admin USN degrada con un avviso.
+- La scansione della cartella include `modsAudit` (v1.3.2): id duplicati, jar
+  camuffati (firma non-ZIP), mod disabilitate con indicatori noti e nome file
+  in contrasto con i metadati. Il controllo runtime legge anche gli hs_err e i
+  crash report, riportando solo i nomi dei flag JVM sospetti.
 - L'esito è **JSON su stdout** (o `--out nomefile.json`), leggibile da
   qualsiasi tool o script; exit code 0 = scansione eseguita.
 
-La GUI (v1.3.1) presenta i risultati in **linguaggio da giocatore**: verdetto
+La GUI (v1.3.2) presenta i risultati in **linguaggio da giocatore**: verdetto
 in parole semplici, gruppi "Cosa abbiamo trovato" e consigli "Cosa fare"; i
 dettagli tecnici restano disponibili, ripiegati in fondo.
 

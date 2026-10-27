@@ -87,6 +87,10 @@ public final class ModScanOpen {
             } else if (jar == null && !opt.containsKey("mem")) {
                 mods = locate();
             }
+            if (mods != null) {
+                // Se l'utente ha indicato la cartella del gioco, analizza <gioco>/mods.
+                mods = com.jaranalyzer.scanners.engine.MinecraftPathResolver.resolveModsDir(mods);
+            }
             if (jar == null && mods == null && !opt.containsKey("mem")) {
                 System.err.println("Nessun bersaglio: specificare --jar <file>, --mods <dir|auto> o --mem <pid|auto>.");
                 return 1;
@@ -105,7 +109,7 @@ public final class ModScanOpen {
             }
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("tool", "ModScanOpen");
-            out.put("version", "1.3.1");
+            out.put("version", "1.3.2");
             out.put("openSource", true);
             out.put("results", results);
             String json = JsonCodec.write(out);
@@ -387,7 +391,7 @@ public final class ModScanOpen {
         }
 
         static void usage() {
-            System.out.println("ModScanOpen 1.3.1 - scansioni mod, open source (MIT), offline\n"
+            System.out.println("ModScanOpen 1.3.2 - scansioni mod, open source (MIT), offline\n"
                     + "\n"
                     + "  scan --jar <file.jar>              analizza un file .jar\n"
                     + "  scan --mods <cartella|auto>        analizza tutta la cartella delle mod (auto: dal processo javaw)\n"

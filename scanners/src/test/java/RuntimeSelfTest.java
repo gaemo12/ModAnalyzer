@@ -2,6 +2,7 @@ import com.jaranalyzer.scanners.Severity;
 import com.jaranalyzer.scanners.engine.CheatArtifacts;
 import com.jaranalyzer.scanners.engine.GameCommandLine;
 import com.jaranalyzer.scanners.engine.LoadedModsLog;
+import com.jaranalyzer.scanners.engine.MinecraftPathResolver;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -29,6 +30,7 @@ public class RuntimeSelfTest {
     loadedModsLog();
     gameCommandLine();
     cheatArtifacts();
+    paths();
     System.out.println(fails == 0 ? "RUNTIME-SELFTEST PASS" : "RUNTIME-SELFTEST FAIL(" + fails + ")");
     if (fails != 0) System.exit(1);
   }
@@ -148,6 +150,53 @@ public class RuntimeSelfTest {
 
     List<CheatArtifacts.Artifact> none = CheatArtifacts.scan(null);
     check("gameDir nullo = lista vuota", none.isEmpty());
+  }
+
+  /* ------------------------------------------------------------ percorsi */
+
+  static void paths() throws Exception {
+    Path game = Files.createTempDirectory("rt-paths");
+    Path mods = Files.createDirectories(game.resolve("mods"));
+    Files.createDirectories(game.resolve("logs"));
+    Files.write(game.resolve("options.txt"), new byte[0]);
+    Files.createDirectories(game.resolve("mods").resolve("1.20.1"));
+
+    check("cartella di gioco con mods/ risolta in <gioco>/mods",
+        MinecraftPathResolver.resolveModsDir(game).equals(mods.toAbsolutePath().normalize()));
+    check("cartella mods lasciata com'è",
+        MinecraftPathResolver.resolveModsDir(mods).equals(mods.toAbsolutePath().normalize()));
+    check("cartella qualsiasi lasciata com'è",
+        MinecraftPathResolver.resolveModsDir(game.resolve("custom")).equals(
+            game.resolve("custom").toAbsolutePath().normalize()));
+    check("null gestito", MinecraftPathResolver.resolveModsDir(null) == null);
+
+    check("gameDir da <gioco>/mods", MinecraftPathResolver.gameDirOfMods(mods).equals(
+        game.toAbsolutePath().normalize()));
+    check("gameDir da <gioco>/mods/<profilo> risale all'istanza",
+        MinecraftPathResolver.gameDirOfMods(mods.resolve("1.20.1")).equals(game.toAbsolutePath().normalize()));
+    check("gameDir di una cartella custom dentro l'istanza",
+        MinecraftPathResolver.gameDirOfMods(Files.createDirectories(game.resolve("custom-mods")))
+            .equals(game.toAbsolutePath().normalize()));
+    check("<gioco> riconosciuto dai marcatori", MinecraftPathResolver.looksLikeGameDir(game));
+    check("cartella vuota non è una game dir",
+        !MinecraftPathResolver.looksLikeGameDir(Files.createTempDirectory("rt-not-game")));
+    check("gameDir nullo", MinecraftPathResolver.gameDirOfMods(null) == null);
+
+    check("modsDirOf conserva il separatore Windows",
+        MinecraftPathResolver.modsDirOf("C:\\Users\\x\\.minecraft").equals("C:\\Users\\x\\.minecraft\\mods"));
+    check("modsDirOf conserva il separatore Unix",
+        MinecraftPathResolver.modsDirOf("/home/x/.minecraft").equals("/home/x/.minecraft/mods"));
+
+    List<MinecraftPathResolver.Hint> hints = MinecraftPathResolver.resolve(
+        "javaw.exe --gameDir C:\\Users\\x\\.minecraft -Dminecraft.applet.TargetDirectory=C:\\Users\\x\\.minecraft",
+        null);
+    check("--gameDir ha la precedenza", !hints.isEmpty()
+        && hints.get(0).source.contains("gameDir") && hints.get(0).confidence == 95);
+    check("stessa cartella da fonti diverse non duplicata", hints.size() == 1);
+    check("command line di un altro programma Java non è Minecraft",
+        !MinecraftPathResolver.looksLikeMinecraft("java -jar server.jar"));
+    check("client Fabric riconosciuto",
+        MinecraftPathResolver.looksLikeMinecraft("javaw.exe net.fabricmc.loader.impl.launch.knot.KnotClient"));
   }
 
   /* ------------------------------------------------------------ helper jar */

@@ -5,6 +5,7 @@ cd /d "%~dp0.."
 
 set "JDIR=C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot"
 set "DIST=dist"
+set "APPVER=1.3.2"
 
 set "MVN=mvn"
 where mvn >nul 2>nul
@@ -49,16 +50,35 @@ for %%f in ("%STAGE%\lib\javafx*.jar") do (
 
 echo 4/5 jpackage ModScanOpen.exe...
 if exist "%DIST%\ModScanOpen" rmdir /s /q "%DIST%\ModScanOpen"
-"%JDIR%\bin\jpackage.exe" --type app-image --name ModScanOpen --input "%STAGE%" --main-jar ModScanOpen.jar --main-class modscan.ModScanOpen --runtime-image "%DIST%\_msruntime" --dest "%DIST%" --java-options "--module-path $APPDIR/javafx" --java-options "--add-modules javafx.controls,javafx.base,javafx.graphics,javafx.web,javafx.media" --java-options "-Dfile.encoding=UTF-8"
+"%JDIR%\bin\jpackage.exe" --type app-image --name ModScanOpen --app-version %APPVER% --input "%STAGE%" --main-jar ModScanOpen.jar --main-class modscan.ModScanOpen --runtime-image "%DIST%\_msruntime" --dest "%DIST%" --java-options "--module-path $APPDIR/javafx" --java-options "--add-modules javafx.controls,javafx.base,javafx.graphics,javafx.web,javafx.media" --java-options "-Dfile.encoding=UTF-8"
 if errorlevel 1 ( echo jpackage fallito. & exit /b 1 )
 
-echo 5/5 Doc e ZIP open source...
+echo 5/6 Doc, jar e ZIP open source...
 copy /Y modscan-open\README.md "%DIST%\ModScanOpen\app\" >nul
 copy /Y modscan-open\LICENSE "%DIST%\ModScanOpen\app\" >nul
+copy /Y modscan-open\target\ModScanOpen.jar "%DIST%\ModScanOpen.jar" >nul
 if exist "%DIST%\ModScanOpen.zip" del /q "%DIST%\ModScanOpen.zip"
 powershell -NoProfile -Command "Compress-Archive -Path 'dist\ModScanOpen\*' -DestinationPath 'dist\ModScanOpen.zip'"
 if errorlevel 1 ( echo ZIP fallito. & exit /b 1 )
 
+echo 6/6 Installer .exe (jpackage + WiX opzionale)...
+set "WIXFOUND="
+if defined WIX_BIN if exist "%WIX_BIN%\candle.exe" ( set "PATH=%WIX_BIN%;%PATH%" & set "WIXFOUND=1" )
+if not defined WIXFOUND if defined WIX if exist "%WIX%\bin\candle.exe" ( set "PATH=%WIX%\bin;%PATH%" & set "WIXFOUND=1" )
+if not defined WIXFOUND for %%d in ("C:\Program Files (x86)\WiX Toolset v3.14\bin" "C:\Program Files (x86)\WiX Toolset v3.11\bin" "C:\Program Files\WiX Toolset v3.14\bin") do if exist "%%~d\candle.exe" ( set "PATH=%%~d;%PATH%" & set "WIXFOUND=1" )
+if not defined WIXFOUND where candle.exe >nul 2>nul && set "WIXFOUND=1"
+if defined WIXFOUND (
+    if exist "%DIST%\ModScanOpen-%APPVER%.exe" del /q "%DIST%\ModScanOpen-%APPVER%.exe"
+    "%JDIR%\bin\jpackage.exe" --type exe --name ModScanOpen --app-version %APPVER% --vendor "ModAnalyzer" --description "ModScanOpen - scansione mod Minecraft offline" --input "%STAGE%" --main-jar ModScanOpen.jar --main-class modscan.ModScanOpen --runtime-image "%DIST%\_msruntime" --dest "%DIST%" --java-options "--module-path $APPDIR/javafx" --java-options "--add-modules javafx.controls,javafx.base,javafx.graphics,javafx.web,javafx.media" --java-options "-Dfile.encoding=UTF-8" --win-per-user-install --win-menu --win-shortcut --win-dir-chooser
+    if errorlevel 1 ( echo Installer .exe fallito. & exit /b 1 )
+    if exist "%DIST%\ModScanOpen.exe" del /q "%DIST%\ModScanOpen.exe"
+    ren "%DIST%\ModScanOpen-%APPVER%.exe" "ModScanOpen.exe"
+    echo Installer: %DIST%\ModScanOpen.exe ^(per-utente, non portable^)
+) else (
+    echo ATTENZIONE: WiX 3 non trovato: installer .exe non creato.
+    echo Imposta WIX_BIN alla cartella che contiene candle.exe e rilancia lo script.
+)
+
 echo.
-echo OK: %DIST%\ModScanOpen\ModScanOpen.exe e %DIST%\ModScanOpen.zip
+echo OK: %DIST%\ModScanOpen\ModScanOpen.exe, %DIST%\ModScanOpen.zip, %DIST%\ModScanOpen.jar
 exit /b 0

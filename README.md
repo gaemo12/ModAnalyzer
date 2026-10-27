@@ -37,7 +37,7 @@ Viene inviato solo l'hash SHA-1 del file, mai il file né percorsi né dati uten
 ## Struttura repo
 
 ```
-pom.xml              parent Maven (modanalyzer-parent 1.3.1)
+pom.xml              parent Maven (modanalyzer-parent 1.3.2)
 common/              DTO / codec JSON condivisi (solo JDK)
 scanners/            motore di scansione (JDK + ASM)
 modscan-open/        app ModScanOpen (JavaFX) + UI web in resources/ui
@@ -113,6 +113,62 @@ per file del journal con i file spariti e corregge un bug della GUI.
   verificato: tutte le risorse referenziate da `index.html` vengono estratte.
 - Con il gioco non attivo, il conteggio "segnali" del controllo runtime non
   conta più la nota informativa come un segnale.
+
+## Rilevamento (v1.3.2)
+
+Release di consolidamento dello screening SS: controlli strutturali sulla
+cartella mods, tracce lasciate dai crash della JVM, correzioni al journal USN e
+alla risoluzione della cartella di gioco.
+
+### Controllo strutturale della cartella mods
+
+La scansione della cartella (`scan --mods`, card "Cartella mods" in GUI) ora
+affianca ai singoli JAR un controllo d'insieme, riportato in `modsAudit`:
+
+- **id duplicati**: due jar abilitati dichiarano lo stesso id (case-insensitive):
+  uno può sovrascrivere o mascherare l'altro;
+- **jar camuffati**: un file `.jar` che inizia con una firma diversa da ZIP
+  (eseguibile Windows/Linux, script con shebang, RAR, 7z, GZIP, BZIP2) viene
+  segnalato con il tipo riconosciuto, senza eseguirlo;
+- **mod disabilitate** (`.jar.disabled/.off/.old/.bak/.backup`): elencate sempre;
+  la firma del file viene controllata comunque; solo se la scansione dispone di
+  indicatori attivi viene aperto in sola lettura per cercare un indicatore nel
+  nome delle entry o nell'id (tetto: 200 file);
+- **nome file vs metadati**: un file che richiama una mod molto diffusa
+  (Sodium, Iris, Xaero, …) ma dichiara un altro id/nome viene marcato come
+  mismatch a bassa severità: un rename legittimo resta possibile.
+
+Il matching degli indicatori sugli id è conservativo (id esatto, ai bordi o
+prefisso/suffisso per indicatori lunghi): niente `contains` su stringhe corte,
+per evitare falsi positivi.
+
+### Tracce dai crash log (`hs_err_pid*.log`, `crash-reports/`)
+
+Quando il gioco è chiuso o l'agente è stato rimosso, il crash log conserva la
+riga di comando della sessione. Vengono letti solo gli 8 file più recenti
+(massimo 256 KB ciascuno) e restituiti **solo i nomi dei flag** sospetti
+(`-javaagent`, `-Xbootclasspath`, `-Djava.system.class.loader`,
+`--tweakClass`, `-XX:+DisableAttachMechanism`, JDWP): nessun percorso, username
+o valore viene esposto. `-cp` e `--mixin` sono esclusi perché troppo rumorosi;
+restano al controllo del processo vivo.
+
+### Correzioni
+
+- **Parser USN**: la riga `File name length` sovrascriveva `File name`, quindi
+  gli eventi del journal non venivano trattenuti. Ora nome, motivo, timestamp e
+  troncamento sono conservati (self-test dedicato).
+- **Cartella di gioco**: selezionando la cartella del gioco (con `mods/`,
+  `logs/`, `options.txt`, …) la scansione usa `<gioco>/mods`; da una cartella
+  `mods/<profilo>` si risale all'istanza corretta. Journal e runtime usano la
+  stessa risoluzione, quindi il confronto log/disco non cerca più i file nella
+  cartella sbagliata.
+- **Runtime con gioco chiuso**: `loadedFilesNotOnDisk` di Forge viene contato e
+  mostrato (prima poteva restare a zero), gli errori non gonfiano il conteggio
+  degli artefatti e i sospetti includono anche i file fantasma e i flag dei
+  crash log.
+- **UI**: corrispondenze dei suggerimenti (`explain.js`) più precise su
+  "porta/port" e sui termini di cheat/download; fallback CSS per i browser
+  senza `color-mix`.
 
 ## Rilevamento (v1.3.0)
 

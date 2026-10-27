@@ -362,7 +362,7 @@ h1{font-size:clamp(34px,5vw,60px);line-height:1;letter-spacing:-.045em;margin:0 
 /* ================= v1.3 — risultati in linguaggio da giocatore ================= */
 .vd{--vc:var(--mut);gap:18px 28px;padding:24px}
 .vd.st-ok,.vd.st-note{--vc:#5fd6a0}.vd.st-warn{--vc:var(--med)}.vd.st-bad{--vc:var(--crit)}
-.vd{border-color:color-mix(in srgb,var(--vc) 38%,#322c27)}
+.vd{border-color:#3a332d}.vd{border-color:color-mix(in srgb,var(--vc) 38%,#322c27)}
 .vd h3{color:var(--vc);font-size:clamp(22px,2.6vw,30px);line-height:1.15;margin:2px 0 8px}
 .vd.idle h3{color:var(--ink)}
 .vsubj{display:block;font:500 12.5px var(--mono);color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:44ch}

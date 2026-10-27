@@ -36,6 +36,21 @@
             + '<span class="sb ' + sb(g.severity) + '">' + esc(g.severity || '') + '</span></div></div>';
     }
 
+    function fileGhostRow(name, stale) {
+        const sev = stale ? 'LOW' : 'MEDIUM';
+        return '<div class="mrw"><div class="mr"><span class="pic">' + ic('jar', 20) + '</span>'
+            + '<div><b>' + esc(name) + '</b><small>Il loader ha aperto questo file, ma nella cartella mods non c\'è.</small></div>'
+            + '<span class="sb ' + sb(sev) + '">' + sev + '</span></div></div>';
+    }
+
+    function crashRow(t) {
+        const flags = (t.flags || []).join(', ');
+        return '<div class="mrw"><div class="mr"><span class="pic">' + ic('alert', 20) + '</span>'
+            + '<div><b>' + esc(t.file || 'crash log') + '</b><small>' + esc(t.kind || 'crash')
+            + ' · flag nella sessione: ' + esc(flags) + '</small></div>'
+            + '<span class="sb unk">TRACCIA</span></div></div>';
+    }
+
     function artifactRow(a) {
         return '<div class="mrw"><div class="mr"><span class="pic">' + ic('shield', 20) + '</span>'
             + '<div><b>' + esc(a.name || a.path) + '</b><small>' + esc(a.path || '') + ' · client: ' + esc(a.family || '?') + '</small></div>'
@@ -52,8 +67,9 @@
                 + '<div style="padding:0 22px 10px">' + l.loadedNotOnDisk.map(ghostRow).join('') + '</div>';
         }
         if ((l.loadedFilesNotOnDisk || []).length) {
-            h += '<div class="ph" style="margin:0 22px 6px">File caricati dal loader ma assenti dalla cartella mods: '
-                + l.loadedFilesNotOnDisk.map(esc).join(', ') + '</div>';
+            h += '<div style="padding:0 22px 6px"><b>File aperti dal loader ma assenti dalla cartella mods:</b></div>'
+                + '<div style="padding:0 22px 10px">'
+                + l.loadedFilesNotOnDisk.map((f) => fileGhostRow(f, l.stale)).join('') + '</div>';
         }
         if ((l.onDiskNotLoaded || []).length) {
             const shown = l.onDiskNotLoaded.slice(0, 12).join(', ');
@@ -72,17 +88,25 @@
         noteEl.textContent = 'Cartella controllata: ' + (d.modsDir || '—');
         let h = '';
         const cmds = (d.cmdFindings || []).filter((f) => !f.note);
+        const fileGhosts = ((d.logDiff || {}).loadedFilesNotOnDisk || []).length;
+        const crashes = (d.crashLogs || []).filter((t) => t && (t.flags || []).length);
         h += '<div class="ph" style="margin:6px 22px 8px"><b>' + cmds.length + '</b> flag sospetti nella riga di comando · '
             + '<b>' + (c.loadedNotOnDisk || 0) + '</b> mod caricate senza jar su disco · '
-            + '<b>' + (c.artifacts || 0) + '</b> artefatti cheat noti.</div>';
+            + '<b>' + (c.loadedFilesNotOnDisk || 0) + '</b> file aperti dal loader senza jar · '
+            + '<b>' + (c.artifacts || 0) + '</b> artefatti cheat noti · '
+            + '<b>' + (c.crashFlags || 0) + '</b> flag nei crash report.</div>';
         if (cmds.length) h += '<div style="padding:0 22px 10px">' + d.cmdFindings.map(cmdRow).join('') + '</div>';
         h += logBox(d.logDiff);
         if ((d.artifacts || []).length) {
             h += '<div style="padding:0 22px 6px"><b>Artefatti di cheat client trovati:</b></div>'
                 + '<div style="padding:0 22px 10px">' + d.artifacts.map(artifactRow).join('') + '</div>';
         }
+        if (crashes.length) {
+            h += '<div style="padding:0 22px 6px"><b>Tracce JVM nei crash report e negli hs_err (solo nomi dei flag):</b></div>'
+                + '<div style="padding:0 22px 10px">' + crashes.map(crashRow).join('') + '</div>';
+        }
         if (!cmds.length && !(d.logDiff || {}).error && !((d.logDiff || {}).loadedNotOnDisk || []).length
-            && !(d.artifacts || []).length) {
+            && !fileGhosts && !(d.artifacts || []).length && !crashes.length) {
             h += '<div class="mempty">Nulla di anomalo nel confronto runtime.</div>';
         }
         out.innerHTML = h;
