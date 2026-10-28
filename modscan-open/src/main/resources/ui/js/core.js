@@ -217,7 +217,7 @@
     /* ---------- navigazione (solo due modalità) ---------- */
     J.modes = [
         { id: 'jar', n: 'File JAR', tab: 'File JAR', ic: 'jar', d: 'Trascina una mod: ti diciamo in parole semplici se è sicura, se contiene cheat o se nasconde qualcosa.' },
-        { id: 'mods', n: 'Cartella mods', tab: 'Mods', ic: 'folder', d: 'Controlla tutte le mod installate: quali sono ufficiali e quali conviene guardare meglio.' }
+        { id: 'mods', n: 'Cartella mods', tab: 'Mods', ic: 'folder', d: 'Si controlla da sola: quali mod sono ufficiali, quali sono state toccate dopo l\'avvio e cosa risulta nel gioco aperto.' }
     ];
     J.onShow = {};
     let cur = 0;

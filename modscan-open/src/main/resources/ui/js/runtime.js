@@ -4,7 +4,9 @@
    3) artefatti noti di cheat client nella .minecraft (solo nomi, mai contenuto). */
 (function () {
     'use strict';
-    const J = window.J, $ = J.$, esc = J.esc, ic = J.ic;
+    const J = window.J, esc = J.esc, ic = J.ic;
+    /* Elementi che non esistono più (pulsanti, selettori) diventano segnaposto invisibili: il codice resta valido. */
+    const ghost = {}, $ = (id) => J.$(id) || (ghost[id] = ghost[id] || document.createElement('div'));
     const out = $('rt-out'), ph = $('rt-ph'), btn = $('btn-rt'),
         gameEl = $('rt-game'), noteEl = $('rt-note');
     let busy = false;
@@ -12,7 +14,10 @@
     if (!btn) return;
 
     const SEV = { CRITICAL: 'bad', HIGH: 'bad', MEDIUM: 'unk', LOW: 'new', INFO: 'new' };
+    const SEVN = { CRITICAL: 'Grave', HIGH: 'Serio', MEDIUM: 'Dubbio', LOW: 'Lieve', INFO: 'Nota' };
     function sb(s) { return SEV[String(s || '').toUpperCase()] || 'new'; }
+    function sn(s) { return SEVN[String(s || '').toUpperCase()] || 'Nota'; }
+    function cls(s) { const k = sb(s); return k === 'bad' ? ' fa' : k === 'unk' ? ' fm' : ''; }
 
     async function currentPath() {
         if (J.modsPath) {
@@ -23,93 +28,61 @@
         return (r.best && r.best.exists !== false) ? r.best.path : null;
     }
 
-    function cmdRow(f) {
-        if (f.note) return '<div class="ph" style="margin:2px 0">' + esc(f.note) + '</div>';
-        return '<div class="mrw"><div class="mr"><span class="pic">' + ic('shield', 20) + '</span>'
-            + '<div><b>' + esc(f.title || f.flag) + '</b><small>' + esc(f.detail || '') + '</small></div>'
-            + '<span class="sb ' + sb(f.severity) + '" title="flag ' + esc(f.flag || '') + '">' + esc(f.severity || '') + '</span></div></div>';
+    /* Ogni segnale diventa una riga dell'elenco mod, con una frase in parole semplici. */
+    function item(icon, title, small, sev, why, pill) {
+        return '<div class="mrw' + cls(sev) + '"><div class="mr"><span class="pic">' + ic(icon, 20) + '</span>'
+            + '<div><b>' + esc(title) + '</b><small>' + esc(small || '') + '</small>'
+            + '<div class="flag">' + ic('flag') + '<span><em>' + esc(why) + '</em></span></div></div>'
+            + '<span class="sz">–</span><span class="sb ' + sb(sev) + '">' + esc(pill || sn(sev)) + '</span><span></span></div></div>';
     }
-
-    function ghostRow(g) {
-        return '<div class="mrw"><div class="mr"><span class="pic">' + ic('jar', 20) + '</span>'
-            + '<div><b>' + esc(g.id) + '</b><small>' + esc(g.detail || '') + '</small></div>'
-            + '<span class="sb ' + sb(g.severity) + '">' + esc(g.severity || '') + '</span></div></div>';
+    function cmdItem(f) {
+        return item('shield', f.title || f.flag, f.detail, f.severity,
+            'Sono le opzioni con cui è stato avviato Minecraft: alcune servono a caricare codice extra nel gioco.');
     }
-
-    function fileGhostRow(name, stale) {
-        const sev = stale ? 'LOW' : 'MEDIUM';
-        return '<div class="mrw"><div class="mr"><span class="pic">' + ic('jar', 20) + '</span>'
-            + '<div><b>' + esc(name) + '</b><small>Il loader ha aperto questo file, ma nella cartella mods non c\'è.</small></div>'
-            + '<span class="sb ' + sb(sev) + '">' + sev + '</span></div></div>';
+    function ghostItem(g) {
+        return item('jar', g.id, g.detail, g.severity,
+            'Il gioco ha caricato questa mod, ma il file non è nella cartella: potrebbe essere stato tolto dopo l\'avvio.');
     }
-
-    function crashRow(t) {
-        const flags = (t.flags || []).join(', ');
-        return '<div class="mrw"><div class="mr"><span class="pic">' + ic('alert', 20) + '</span>'
-            + '<div><b>' + esc(t.file || 'crash log') + '</b><small>' + esc(t.kind || 'crash')
-            + ' · flag nella sessione: ' + esc(flags) + '</small></div>'
-            + '<span class="sb unk">TRACCIA</span></div></div>';
+    function fileGhostItem(name, stale) {
+        return item('jar', name, 'Il loader ha aperto questo file, ma nella cartella mods non c\'è.', stale ? 'LOW' : 'MEDIUM',
+            stale ? 'Viene dal log della partita precedente: può essere una mod che hai già tolto.' : 'Era in uso durante la partita e ora non c\'è più.');
     }
-
-    function artifactRow(a) {
-        return '<div class="mrw"><div class="mr"><span class="pic">' + ic('shield', 20) + '</span>'
-            + '<div><b>' + esc(a.name || a.path) + '</b><small>' + esc(a.path || '') + ' · client: ' + esc(a.family || '?') + '</small></div>'
-            + '<span class="sb ' + sb(a.severity) + '">' + esc(a.severity || '') + '</span></div></div>';
+    function crashItem(t) {
+        return item('alert', t.file || 'crash log', (t.kind || 'crash') + ' · ' + (t.flags || []).join(', '), 'MEDIUM',
+            'Nei file di errore di Java sono rimaste tracce di elementi sospetti. Sono solo i nomi, non il contenuto.', 'Traccia');
     }
-
-    function logBox(l) {
-        if (!l || l.error) return '<div class="ph" style="margin:4px 22px 12px">Log: ' + esc((l && l.error) || 'non leggibile') + '</div>';
-        let h = '<div class="ph" style="margin:4px 22px 6px">Log ' + esc(l.logFile || 'latest.log')
-            + ' (' + esc(l.format || '?') + '): ' + (l.loadedCount || 0) + ' id caricati · ' + (l.diskCount || 0) + ' id su disco'
-            + (l.stale ? ' · <b>log della sessione precedente</b>' : '') + '</div>';
-        if ((l.loadedNotOnDisk || []).length) {
-            h += '<div style="padding:0 22px 6px"><b>Caricate senza jar su disco:</b></div>'
-                + '<div style="padding:0 22px 10px">' + l.loadedNotOnDisk.map(ghostRow).join('') + '</div>';
+    function artifactItem(a) {
+        return item('shield', a.name || a.path, (a.path || '') + ' · client: ' + (a.family || '?'), a.severity,
+            'File o cartelle di un client cheat noto trovati sul PC.');
+    }
+    function infoHtml(l, c, nCmd) {
+        let h = '<div class="ph">Confronto con il gioco aperto: <b>' + nCmd + '</b> opzioni sospette all\'avvio · <b>' + (c.loadedNotOnDisk || 0)
+            + '</b> mod caricate senza file · <b>' + (c.loadedFilesNotOnDisk || 0) + '</b> file spariti · <b>' + (c.artifacts || 0)
+            + '</b> tracce di cheat client · <b>' + (c.crashFlags || 0) + '</b> segnali nei file di errore.</div>';
+        if (l && !l.error) {
+            h += '<div class="ph"><small>Log ' + esc(l.logFile || 'latest.log') + ': ' + (l.loadedCount || 0) + ' mod caricate · ' + (l.diskCount || 0) + ' nella cartella'
+                + (l.stale ? ' · <b>log della partita precedente</b>' : '') + '.</small></div>';
+            if ((l.onDiskNotLoaded || []).length) {
+                h += '<div class="ph"><small>Nella cartella ma mai caricate (' + l.onDiskNotLoaded.length + '): ' + esc(l.onDiskNotLoaded.slice(0, 12).join(', '))
+                    + (l.onDiskNotLoaded.length > 12 ? ' …' : '') + ' — disattivate o mai avviate, solo una nota.</small></div>';
+            }
+        } else if (l && l.error) {
+            h += '<div class="ph"><small>Log non letto: ' + esc(l.error) + '</small></div>';
         }
-        if ((l.loadedFilesNotOnDisk || []).length) {
-            h += '<div style="padding:0 22px 6px"><b>File aperti dal loader ma assenti dalla cartella mods:</b></div>'
-                + '<div style="padding:0 22px 10px">'
-                + l.loadedFilesNotOnDisk.map((f) => fileGhostRow(f, l.stale)).join('') + '</div>';
-        }
-        if ((l.onDiskNotLoaded || []).length) {
-            const shown = l.onDiskNotLoaded.slice(0, 12).join(', ');
-            h += '<div class="ph" style="margin:0 22px 6px">Su disco ma mai caricate (' + l.onDiskNotLoaded.length + '): ' + esc(shown)
-                + (l.onDiskNotLoaded.length > 12 ? ' …' : '') + ' — disabilitate o mai avviate, solo nota.</div>';
-        }
-        (l.notes || []).forEach((n) => { h += '<div class="ph" style="margin:0 22px 4px"><small>' + esc(n) + '</small></div>'; });
         return h;
     }
 
+    /* Pubblica le righe per l'elenco mod (gruppo «Dal gioco in esecuzione»). */
     function render(d) {
-        const g = d.game, c = d.counts || {};
-        gameEl.textContent = g
-            ? 'Minecraft ' + (g.exe || 'javaw') + ' · PID ' + g.pid
-            : 'Nessun gioco attivo: controllo su cartella e log';
-        noteEl.textContent = 'Cartella controllata: ' + (d.modsDir || '—');
-        let h = '';
+        const c = d.counts || {}, l = d.logDiff || {}, items = [];
         const cmds = (d.cmdFindings || []).filter((f) => !f.note);
-        const fileGhosts = ((d.logDiff || {}).loadedFilesNotOnDisk || []).length;
-        const crashes = (d.crashLogs || []).filter((t) => t && (t.flags || []).length);
-        h += '<div class="ph" style="margin:6px 22px 8px"><b>' + cmds.length + '</b> flag sospetti nella riga di comando · '
-            + '<b>' + (c.loadedNotOnDisk || 0) + '</b> mod caricate senza jar su disco · '
-            + '<b>' + (c.loadedFilesNotOnDisk || 0) + '</b> file aperti dal loader senza jar · '
-            + '<b>' + (c.artifacts || 0) + '</b> artefatti cheat noti · '
-            + '<b>' + (c.crashFlags || 0) + '</b> flag nei crash report.</div>';
-        if (cmds.length) h += '<div style="padding:0 22px 10px">' + d.cmdFindings.map(cmdRow).join('') + '</div>';
-        h += logBox(d.logDiff);
-        if ((d.artifacts || []).length) {
-            h += '<div style="padding:0 22px 6px"><b>Artefatti di cheat client trovati:</b></div>'
-                + '<div style="padding:0 22px 10px">' + d.artifacts.map(artifactRow).join('') + '</div>';
-        }
-        if (crashes.length) {
-            h += '<div style="padding:0 22px 6px"><b>Tracce JVM nei crash report e negli hs_err (solo nomi dei flag):</b></div>'
-                + '<div style="padding:0 22px 10px">' + crashes.map(crashRow).join('') + '</div>';
-        }
-        if (!cmds.length && !(d.logDiff || {}).error && !((d.logDiff || {}).loadedNotOnDisk || []).length
-            && !fileGhosts && !(d.artifacts || []).length && !crashes.length) {
-            h += '<div class="mempty">Nulla di anomalo nel confronto runtime.</div>';
-        }
-        out.innerHTML = h;
+        cmds.forEach((f) => items.push(cmdItem(f)));
+        (l.loadedNotOnDisk || []).forEach((g) => items.push(ghostItem(g)));
+        (l.loadedFilesNotOnDisk || []).forEach((n) => items.push(fileGhostItem(n, l.stale)));
+        (d.artifacts || []).forEach((a) => items.push(artifactItem(a)));
+        (d.crashLogs || []).filter((t) => t && (t.flags || []).length).forEach((t) => items.push(crashItem(t)));
+        J.modsBadges.runtime = { items: items, info: infoHtml(l, c, cmds.length), game: d.game || null };
+        if (J.modsRefresh) J.modsRefresh();
     }
 
     async function run(quiet) {
@@ -144,10 +117,10 @@
 
     /* Parte da solo dopo il journal (catena avviata dalla scansione della cartella). */
     async function auto() {
-        if (busy) return;
-        await run(true);
+        if (busy) return null;
+        return run(true);
     }
 
-    J.runtime = { auto: auto, run: () => run(false) };
+    J.runtime = { auto: auto, run: (q) => run(q === true) };
     btn.addEventListener('click', () => run(false));
 })();

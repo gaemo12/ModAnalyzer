@@ -568,6 +568,26 @@ final class OpenMods {
         } catch (Exception e) {
             // enumerazione fallita: best resta null, la UI propone la scelta manuale
         }
+        if (best == null) {
+            /* Nessun Minecraft in esecuzione: si ripiega sulla cartella predefinita (%APPDATA%/.minecraft/mods),
+               così la scheda Mods può partire da sola anche a gioco chiuso. */
+            String appData = System.getenv("APPDATA");
+            File mc = appData != null && !appData.isBlank() ? new File(appData, ".minecraft")
+                    : new File(System.getProperty("user.home", "."), ".minecraft");
+            List<Map<String, Object>> fallback = new ArrayList<>();
+            addCandidate(fallback, new File(mc, "mods").getPath(), "cartella predefinita di Minecraft");
+            for (Map<String, Object> c : fallback) {
+                if (Boolean.TRUE.equals(c.get("exists"))) {
+                    best = new LinkedHashMap<>();
+                    best.put("path", c.get("path"));
+                    best.put("pid", "");
+                    best.put("processName", "");
+                    best.put("source", c.get("source"));
+                    best.put("exists", true);
+                    best.put("jarCount", c.get("jarCount"));
+                }
+            }
+        }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("processes", processes);
         out.put("best", best);

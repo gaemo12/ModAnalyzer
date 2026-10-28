@@ -5,7 +5,9 @@
    come badge nella lista delle mod. Riaprire la sezione non rifà il dump. */
 (function () {
     'use strict';
-    const J = window.J, $ = J.$, R = J.Report;
+    const J = window.J, R = J.Report;
+    /* Elementi che non esistono più (selettore PID, pulsanti) diventano segnaposto invisibili. */
+    const ghost = {}, $ = (id) => J.$(id) || (ghost[id] = ghost[id] || document.createElement('div'));
     const STEPS = ['Mi collego al gioco', 'Copio il codice in uso', 'Preparo il pacchetto', 'Lettura del codice', 'Cerco funzioni pericolose o da cheat', 'Preparo il risultato'];
     const LOGS = ['mi collego a Minecraft', 'copio il codice caricato (mod ufficiali saltate)', 'preparo il file da controllare', 'leggo il codice', 'cerco furto di dati, controllo remoto e cheat', 'metto insieme il risultato'];
     const LS = 'modscan.mem.auto';
@@ -14,7 +16,7 @@
     const verdictSlot = $('mem-verdict-slot'), priSlot = $('mem-pri-slot'),
         mapSlot = $('mem-map-slot'), rep = $('mem-rep'),
         pidInput = $('mem-pid'), scanBtn = $('btn-mem-scan'),
-        autoBox = $('mem-auto'), phaseEl = $('mem-phase');
+        autoBox = J.$('mem-auto'), phaseEl = $('mem-phase');   /* null se la casella non esiste più: il controllo è sempre automatico */
 
     /* Preferenza "automatico" (default attivo): salvata in locale. */
     if (autoBox) {
@@ -30,6 +32,12 @@
     const autoOn = () => !autoBox || autoBox.checked;
 
     function setPhase(txt) { if (phaseEl) phaseEl.textContent = txt || ''; }
+    /* La scheda «Codice in uso nel gioco» compare solo quando c'è un controllo in corso o un risultato. */
+    function showBox(sum, open) {
+        const b = $('mem-box'); if (!b) return;
+        b.hidden = false; if (open !== undefined) b.open = open;
+        const s = $('mem-sum'); if (s && sum) s.textContent = sum;
+    }
     function fmtSec(ms) { return ms > 0 ? Math.round(ms / 1000) + 's' : '–'; }
 
     /* Avanzamento reale dal server (progress.txt dell'agent + fasi app). */
@@ -67,6 +75,7 @@
         rep.innerHTML = ''; priSlot.innerHTML = '';
         verdictSlot.innerHTML = R.idleVerdict('Analisi in corso…', label);
         $('mem-path').textContent = label;
+        showBox('in corso…', false);
         mapSlot.innerHTML = mapCard();
         R.Map.idle();
         R.Map.build($('mem-grid'), 320);
@@ -103,6 +112,8 @@
         setPhase(raw.cached
             ? 'Risultati già pronti per questa sessione di gioco: nessun nuovo dump.'
             : 'Dump completato — dump ' + fmtSec(raw.dumpMs) + ', analisi ' + fmtSec(raw.analysisMs) + '.');
+        const sm = J.Explain.summarize(d);
+        showBox(sm.headline, sm.state === 'bad' || sm.state === 'warn');
         publishBadges(raw);
         window.onAnalysisComplete && window.onAnalysisComplete(d);
     }
@@ -177,7 +188,7 @@
         pidInput.value = p;
         J.pick('mods');
         const mp = (J.modsPath && J.modsPath()) || '';
-        analyze('PID ' + p, () => J.api('/api/mem/dump', { method: 'POST', body: 'pid=' + encodeURIComponent(p) + '&skip=1' + (mp ? '&mods=' + encodeURIComponent(mp) : '') })
+        return analyze('PID ' + p, () => J.api('/api/mem/dump', { method: 'POST', body: 'pid=' + encodeURIComponent(p) + '&skip=1' + (mp ? '&mods=' + encodeURIComponent(mp) : '') })
             .catch((e) => {
                 // Un dump è già partito (altra finestra o auto-avvio): ci si aggancia.
                 if (/già in esecuzione|già in corso/i.test(e.message || '')) return waitExistingDump();
@@ -189,16 +200,15 @@
        Se un dump è già in corso ci si aggancia al suo progresso; se questa sessione
        di gioco ha già un risultato, il server risponde dalla cache senza rifare nulla. */
     async function auto(pidArg) {
-        if (busy || !autoOn()) return;
+        if (busy || !autoOn()) return null;
         try {
             const st = await J.api('/api/mem/progress');
             if (st && st.state === 'running') {
                 J.pick('mods');
-                await analyze('Dump in corso…', () => waitExistingDump());
-                return;
+                return await analyze('Dump in corso…', () => waitExistingDump());
             }
         } catch (e) { /* stato non leggibile: si prova comunque ad avviare */ }
-        scan(pidArg);
+        return scan(pidArg);
     }
     function waitExistingDump() {
         return new Promise((resolve, reject) => {

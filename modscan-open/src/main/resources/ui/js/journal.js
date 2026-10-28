@@ -5,7 +5,9 @@
    v1.3: parte da solo dopo il controllo della cartella; gli esiti finiscono sulle righe dell'elenco mod. */
 (function () {
     'use strict';
-    const J = window.J, $ = J.$, esc = J.esc, ic = J.ic;
+    const J = window.J, esc = J.esc, ic = J.ic;
+    /* Elementi che non esistono più (pulsanti, selettori) diventano segnaposto invisibili: il codice resta valido. */
+    const ghost = {}, $ = (id) => J.$(id) || (ghost[id] = ghost[id] || document.createElement('div'));
     const out = $('jrnl-out'), ph = $('jrnl-ph'), btn = $('btn-jrnl'),
         gameEl = $('jrnl-game'), noteEl = $('jrnl-note'), usnBox = $('jrnl-usn');
     let busy = false;
@@ -104,10 +106,6 @@
         } else {
             h += '<div class="jwarn">' + ic('alert') + '<span>' + esc(j.note || 'Journal di Windows non disponibile.') + '</span></div>';
         }
-        if (gone) {
-            h += '<div class="jgone"><h4>File che c\'erano nella cartella e ora non ci sono più <span class="chip">' + gone + '</span></h4>'
-                + j.gone.map((x) => '<div class="grow"><span class="pic">' + ic('jar', 20) + '</span><div><b>' + esc(x.fileName) + '</b><small>' + ghostWhy(x) + '</small></div><span class="sb ' + (x.kind === 'deleted' ? 'bad' : 'unk') + '">' + (x.kind === 'deleted' ? 'Eliminato' : 'Rinominato') + '</span></div>').join('') + '</div>';
-        }
         if (j.available && (j.events || []).length) {
             h += '<details class="jall"><summary>Tutti gli eventi del journal <span class="chip">' + j.events.length + '</span></summary><div class="jev" style="max-height:260px;overflow:auto">'
                 + j.events.map((e) => '<div><small>' + fmt(e.time) + '</small><span class="sb ' + (e.kind === 'deleted' ? 'bad' : e.kind === 'renamed_from' || e.kind === 'renamed_to' || e.kind === 'written' || e.kind === 'attrs' ? 'unk' : 'new') + '">' + esc(KIND[e.kind] || e.kind) + '</span><code>' + esc(e.file) + '</code><small>' + esc(e.reason || '') + '</small></div>').join('') + '</div></details>';
@@ -150,7 +148,7 @@
                 if (!quiet) ph.textContent = 'Cartella mods non trovata: avvia Minecraft oppure scegli la cartella nella scheda qui sopra.';
                 return null;
             }
-            const d = await J.api('/api/mods/journal?path=' + encodeURIComponent(p) + (usnBox && usnBox.checked ? '&usn=1' : ''));
+            const d = await J.api('/api/mods/journal?path=' + encodeURIComponent(p) + '&usn=1');
             ph.textContent = quiet ? 'Controllo automatico completato' : 'Controllo completato';
             publish(d);
             render(d);
@@ -183,7 +181,7 @@
         if (d && d.game && d.game.pid && J.mem && J.mem.auto) J.mem.auto(String(d.game.pid));
     }
 
-    J.journal = { auto: auto, run: () => run(false) };
+    J.journal = { auto: auto, run: (q) => run(q === true) };
     J.jr = { flag: flag, ghostWhy: ghostWhy };
     out.addEventListener('click', (e) => { if (e.target.closest('[data-jr-show]') && J.modsFilter) J.modsFilter('jr'); });
     btn.addEventListener('click', () => run(false));

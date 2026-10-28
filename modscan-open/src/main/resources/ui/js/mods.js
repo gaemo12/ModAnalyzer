@@ -13,7 +13,8 @@
 
     /* Badge "risultati nella lista": journal (righe rosse) e dump memoria (chip per mod).
        Riempiti da journal.js e mem.js dopo i rispettivi controlli. */
-    J.modsBadges = J.modsBadges || { journal: {}, mem: {}, gone: [], journalMeta: null };
+    J.modsBadges = J.modsBadges || { journal: {}, mem: {}, gone: [], journalMeta: null, runtime: null };
+    let lastRun = 0;
     const jkey = (m) => String(m.fileName || '').toLowerCase();
     const jinfo = (m) => J.modsBadges.journal[jkey(m)];
     function badges(m) {
@@ -76,39 +77,49 @@
     /* La card "Integrità mod" (journal.js) controlla la stessa cartella. */
     J.modsPath = () => path;
 
-    async function locate(auto) {
-        const btn = $('btn-mods-locate');
-        btn.disabled = true;
+    const LSP = 'modscan.mods.path';
+    const savedPath = () => { try { return localStorage.getItem(LSP) || ''; } catch (e) { return ''; } };
+    const savePath = (p) => { try { localStorage.setItem(LSP, p); } catch (e) { /* preferenza non salvata */ } };
+    function emptyState(msg) {
+        list.innerHTML = '<div class="mempty">' + esc(msg) + '<br><button class="btn sm" type="button" data-choose style="margin-top:14px">' + ic('folder') + 'Scegli la cartella mods</button></div>';
+        $('mods-ph').textContent = 'Cartella non trovata';
+        $('mods-path').textContent = 'Nessuna cartella selezionata';
+    }
+    async function locate() {
         $('mods-source').textContent = 'Cerco il gioco tra i processi Java in esecuzione…';
+        const box = $('mods-cands');
         try {
             const r = await J.api('/api/mods/locate');
             const cands = [];
             (r.processes || []).forEach((p) => (p.candidates || []).forEach((c) => cands.push({ p, c })));
-            const box = $('mods-cands');
-            if (r.best) {
-                const b = r.best;
-                setPath(b.path, 'Trovata dal processo ' + (R_exe(b.processName)) + ' (PID ' + b.pid + ') · ' + b.source + (b.exists ? ' · ' + b.jarCount + ' file .jar' : ' · la cartella non esiste ancora'));
+            const b = r.best;
+            if (b && b.pid) {
+                setPath(b.path, 'Trovata dal gioco in esecuzione: ' + (R_exe(b.processName)) + ' (PID ' + b.pid + ')' + (b.exists ? ' · ' + b.jarCount + ' file .jar' : ' · la cartella non esiste ancora'));
                 if (cands.length > 1) {
                     box.hidden = false;
                     box.innerHTML = '<span class="cl">Altre cartelle trovate:</span>' + cands.map((x, i) => '<button type="button" class="fl" data-i="' + i + '" aria-pressed="' + (x.c.path === b.path && x.p.pid === b.pid) + '">PID ' + esc(x.p.pid) + ' · ' + esc(tail(x.c.path)) + ' · ' + x.c.jarCount + ' jar</button>').join('');
                     box.onclick = (e) => {
-                        const bt = e.target.closest('button[data-i]'); if (!bt) return;
+                        const bt = e.target.closest('button[data-i]'); if (!bt || busy) return;
                         const x = cands[+bt.dataset.i];
                         box.querySelectorAll('button').forEach((q) => q.setAttribute('aria-pressed', q === bt));
-                        setPath(x.c.path, 'Dal processo ' + R_exe(x.p.processName) + ' (PID ' + x.p.pid + ') · ' + x.c.source);
+                        setPath(x.c.path, 'Dal gioco in esecuzione: ' + R_exe(x.p.processName) + ' (PID ' + x.p.pid + ') · ' + x.c.source);
                         scan();
                     };
                 } else box.hidden = true;
                 located = true;
-                if (b.exists) { scan(); }
-            } else {
-                $('mods-cands').hidden = true;
-                $('mods-source').textContent = auto ? 'Nessun Minecraft in esecuzione: avvia il gioco e premi «Trova da javaw», oppure scegli la cartella a mano.' : 'Nessun processo Minecraft trovato. Avvia il gioco oppure scegli la cartella a mano.';
-                if (!auto) J.toast('Nessun processo Minecraft trovato');
+                if (b.exists) scan(); else emptyState('La cartella mods di questo Minecraft non esiste ancora.');
+                return;
             }
+            box.hidden = true;
+            const saved = savedPath();
+            if (saved) { setPath(saved, 'Ultima cartella controllata (nessun Minecraft in esecuzione)'); located = true; scan(); return; }
+            if (b) { setPath(b.path, 'Cartella predefinita di Minecraft · ' + b.jarCount + ' file .jar (nessun Minecraft in esecuzione)'); located = true; scan(); return; }
+            $('mods-source').textContent = 'Nessun Minecraft in esecuzione e nessuna cartella predefinita.';
+            emptyState('Non trovo la cartella mods. Avvia Minecraft e riapri questa scheda, oppure scegli la cartella a mano.');
         } catch (e) {
             $('mods-source').textContent = 'Ricerca non riuscita: ' + e.message;
-        } finally { btn.disabled = false; }
+            emptyState('La ricerca della cartella non è riuscita.');
+        }
     }
     function R_exe(s) { return window.J.Report.exeName(s) || 'java'; }
     function tail(p) { const a = String(p).replace(/\\/g, '/').split('/').filter(Boolean); return a.slice(-3).join('/'); }
@@ -122,7 +133,7 @@
         }
     }
     /* chiamata da Java (DesktopApp) */
-    window.handleModsFolderSelection = function (p) { J.pick('mods'); $('mods-cands').hidden = true; setPath(p, 'Cartella scelta a mano'); scan(); };
+    window.handleModsFolderSelection = function (p) { savePath(p); located = true; $('mods-cands').hidden = true; setPath(p, 'Cartella scelta a mano'); J.pick('mods'); scan(); };
 
     /* ---------- rendering ----------
        Elenco a pagine (40 righe + "Mostra altri"/scorrimento): con centinaia di mod il DOM resta piccolo.
@@ -148,19 +159,19 @@
     function counts() { const c = { ok: 0, unk: 0, bad: 0, new: 0 }; entries.forEach((m) => c[m.s]++); return c; }
     /* Analisi approfondita in sequenza delle mod non verificate (una alla volta: l'analisi completa è pesante). */
     let deepRun = false, deepStop = false;
-    async function deepAll() {
-        if (deepRun) { deepStop = true; return; }
+    async function deepAll(auto) {
+        if (deepRun) return;
         const todo = entries.map((m, i) => i).filter((i) => entries[i].s === 'unk' && !entries[i].ui.deep);
-        if (!todo.length) { J.toast('Nessuna mod non riconosciuta da controllare'); return; }
+        if (!todo.length) { if (!auto) J.toast('Nessuna mod non riconosciuta da controllare'); return; }
         deepRun = true; deepStop = false;
-        const btn = $('btn-mods-deep'), label = btn.querySelector('span');
+        const stop = $('btn-mods-stop'), ph = $('mods-ph'); stop.hidden = false;
         for (let k = 0; k < todo.length && !deepStop; k++) {
-            label.textContent = 'Controllo ' + (k + 1) + '/' + todo.length + ' — interrompi';
+            ph.textContent = 'Controllo a fondo delle mod non riconosciute: ' + (k + 1) + ' di ' + todo.length + '…';
             await scanOne(todo[k]);
         }
-        deepRun = false;
+        stop.hidden = true; deepRun = false;
         const c = counts();
-        J.toast(deepStop ? 'Controllo interrotto' : 'Controllo completato: ' + c.bad + ' da controllare, ' + c.unk + ' ancora non riconosciute', c.bad ? 'error' : undefined);
+        if (!auto || c.bad) J.toast(deepStop ? 'Controllo interrotto' : 'Controllo a fondo completato: ' + c.bad + ' da controllare, ' + c.unk + ' ancora non riconosciute', c.bad ? 'error' : undefined);
         updateSum(); render();
     }
     function updateSum() {
@@ -172,9 +183,8 @@
         $('ms4').textContent = $('fj').textContent = J.modsBadges.journalMeta ? touched : '–';
         const w = [c.ok, c.unk, c.bad], n = entries.length || 1;
         document.querySelectorAll('#mbar span').forEach((e, i) => { e.style.width = (any ? w[i] / n * 100 : 0) + '%'; });
-        const db = $('btn-mods-deep'), label = db.querySelector('span');
-        db.disabled = !(c.unk > 0) && !deepRun;
-        if (!deepRun) label.textContent = c.unk ? 'Controlla a fondo le non riconosciute (' + c.unk + ')' : 'Controlla a fondo le non riconosciute';
+        const rt = J.modsBadges.runtime, rb = document.querySelector('#mfil [data-f="rt"]');
+        if (rb) { rb.hidden = !(rt && rt.items.length); $('fr').textContent = rt ? rt.items.length : '–'; }
     }
     let goneList = [];
     function ghostRow(x) {
@@ -191,6 +201,14 @@
             rows.push({ h: 'Spariti dopo l\'avvio', c: 'var(--crit)', n: goneList.length });
             goneList.forEach((x, k) => rows.push({ gi: k }));
         }
+        const rt = J.modsBadges.runtime;
+        if (rt && (rt.items.length || rt.info) && (filter === 'all' || filter === 'rt')) {
+            if (rt.items.length) {
+                rows.push({ h: 'Dal gioco in esecuzione', c: 'var(--high)', n: rt.items.length });
+                rt.items.forEach((x, k) => rows.push({ ri: k }));
+            }
+            if (rt.info) rows.push({ rinfo: true });
+        }
         G.forEach((g) => {
             const l = [];
             entries.forEach((m, i) => { if (m.s === g[0] && (filter === 'all' || filter === g[0] || (filter === 'jr' && jinfo(m))) && (!q || (m.fileName + ' ' + (m.modName || '')).toLowerCase().indexOf(q) >= 0)) l.push(i); });
@@ -200,9 +218,9 @@
             l.forEach((i) => rows.push({ i: i }));
         });
     }
-    function rowHtml(r) { return r.h ? '<div class="mgh"><i style="background:' + r.c + '"></i>' + r.h + ' <span class="n">' + r.n + '</span></div>' : r.gi !== undefined ? ghostRow(goneList[r.gi]) : row(entries[r.i], r.i); }
+    function rowHtml(r) { return r.ri !== undefined ? J.modsBadges.runtime.items[r.ri] : r.rinfo ? '<div class="rtinfo">' + J.modsBadges.runtime.info + '</div>' : r.h ? '<div class="mgh"><i style="background:' + r.c + '"></i>' + r.h + ' <span class="n">' + r.n + '</span></div>' : r.gi !== undefined ? ghostRow(goneList[r.gi]) : row(entries[r.i], r.i); }
     function foot() {
-        const total = rows.filter((r) => !r.h).length, nowShown = rows.slice(0, shown).filter((r) => !r.h).length;
+        const total = rows.filter((r) => !r.h && !r.rinfo).length, nowShown = rows.slice(0, shown).filter((r) => !r.h && !r.rinfo).length;
         return shown >= rows.length ? '' : '<div class="pgap" id="mods-more"><span>Visualizzate ' + nowShown + ' di ' + total + ' mod.</span> <button class="btn sec sm" type="button" data-more>Mostra altre</button></div>';
     }
     function render() {
@@ -239,7 +257,8 @@
         $('btn-mods-scan').disabled = true;
         entries = []; filter = 'all'; $('mq').value = '';
         const auditBox = $('mods-audit'); if (auditBox) { auditBox.innerHTML = ''; auditBox.hidden = true; }
-        J.modsBadges.journal = {}; J.modsBadges.gone = []; J.modsBadges.journalMeta = null;
+        J.modsBadges.journal = {}; J.modsBadges.gone = []; J.modsBadges.journalMeta = null; J.modsBadges.runtime = null;
+        $('jrnl-out').innerHTML = '';
         document.querySelectorAll('#mfil .fl').forEach((x) => x.setAttribute('aria-pressed', x.dataset.f === 'all'));
         updateSum();
         list.innerHTML = '<div class="mempty"><span class="sp"></span>Lettura della cartella, calcolo degli hash e verifica dei rilasci…</div>';
@@ -261,11 +280,36 @@
         updateSum(); render();
         const c = counts(), n = entries.length;
         ph.textContent = n ? 'Controllo completato — ' + c.ok + ' ufficiali, ' + c.unk + ' non riconosciute, ' + c.bad + ' da controllare' : 'Nessun file .jar trovato';
-        $('btn-mods-scan').disabled = false;
-        busy = false;
-        if (c.bad) J.toast(c.bad + ' mod da controllare', 'error'); else J.toast('Cartella controllata');
-        /* v1.2.0: journal e dump di memoria partono da soli; gli esiti compaiono in questa lista. */
-        if (J.journal && J.journal.auto) J.journal.auto();
+        if (c.bad) J.toast(c.bad + ' mod da controllare', 'error');
+        /* Tutti gli altri controlli partono da soli, uno dopo l'altro, e finiscono nella stessa lista. */
+        try { await chain(); } finally { lastRun = Date.now(); busy = false; $('btn-mods-scan').disabled = false; }
+    }
+
+    const DEEP_MAX = 25;
+    function summaryLine(unkLeft) {
+        const c = counts(), n = entries.length, rt = J.modsBadges.runtime, jm = J.modsBadges.journalMeta;
+        let t = n ? 'Controllo completato — ' + c.ok + ' ufficiali, ' + c.unk + ' non riconosciute, ' + c.bad + ' da controllare' : 'Nessun file .jar trovato';
+        if (jm) t += ' · ' + (entries.filter((m) => jinfo(m)).length + (J.modsBadges.gone || []).length) + ' toccate dopo l\'avvio';
+        if (rt) t += ' · gioco aperto: ' + (rt.items.length ? rt.items.length + ' segnali' : 'nessuna anomalia');
+        if (unkLeft > DEEP_MAX) t += ' · ' + unkLeft + ' mod non riconosciute: usa «Controlla a fondo» sulle singole righe';
+        return t;
+    }
+    async function chain() {
+        const ph = $('mods-ph'), pg = $('mods-pg');
+        const step = (t, w) => { ph.textContent = t; pg.style.width = w + '%'; };
+        let jd = null;
+        try {
+            step('Controllo le date dei file e il journal di Windows…', 30);
+            if (J.journal) jd = await J.journal.run(true);
+            step('Confronto con il gioco in esecuzione…', 50);
+            if (J.runtime) await J.runtime.run(true);
+            const unk = entries.filter((m) => m.s === 'unk' && !m.ui.deep).length;
+            if (unk && unk <= DEEP_MAX) { step('Controllo a fondo delle mod non riconosciute…', 70); await deepAll(true); }
+            if (jd && jd.game && jd.game.pid && J.mem) { step('Controllo il codice in uso nel gioco…', 90); await J.mem.auto(String(jd.game.pid)); }
+        } catch (e) { /* un controllo che fallisce non ferma gli altri */ }
+        pg.style.width = '100%';
+        ph.textContent = summaryLine(entries.filter((m) => m.s === 'unk' && !m.ui.deep).length);
+        setTimeout(() => { pg.style.width = '0'; }, 900);
     }
 
     /* ---------- scansione del singolo jar ---------- */
@@ -316,6 +360,7 @@
     list.onclick = (e) => {
         const mb = e.target.closest('[data-more]');
         if (mb) { more(); return; }
+        if (e.target.closest('[data-choose]')) { choose(); return; }
         const b = e.target.closest('button[data-i]');
         if (b) { scanOne(+b.dataset.i); return; }
         const o = e.target.closest('[data-open]');
@@ -323,9 +368,13 @@
     };
     let mqT = null; $('mq').oninput = () => { clearTimeout(mqT); mqT = setTimeout(render, 160); };
     document.querySelectorAll('#mfil .fl').forEach((b) => { b.onclick = () => { filter = b.dataset.f; document.querySelectorAll('#mfil .fl').forEach((x) => x.setAttribute('aria-pressed', x === b)); render(); }; });
-    $('btn-mods-scan').onclick = scan;
-    $('btn-mods-deep').onclick = deepAll;
+    $('btn-mods-scan').onclick = () => { if (path) scan(); else locate(); };
     $('btn-mods-choose').onclick = choose;
-    $('btn-mods-locate').onclick = () => locate(false);
-    J.onShow.mods = () => { if (!located && !path) locate(true); };
+    $('btn-mods-stop').onclick = () => { deepStop = true; };
+    /* Entrando nella scheda parte tutto da solo; se i risultati sono freschi (meno di 2 minuti) non si rifà. */
+    J.onShow.mods = () => {
+        if (busy || deepRun) return;
+        if (!located && !path) { locate(); return; }
+        if (path && Date.now() - lastRun > 120000) scan();
+    };
 })();

@@ -72,60 +72,30 @@
     <div class="card">
       <div class="mfold">
         <div class="path"><span class="pic"><svg class="ic" style="width:22px;height:22px"><use href="#i-folder"/></svg></span>
-          <div><code id="mods-path">Nessuna cartella selezionata</code><small id="mods-source">Se Minecraft è aperto la troviamo da soli, altrimenti scegli la cartella a mano.</small></div></div>
-        <div class="row"><button class="btn sec" id="btn-mods-choose" type="button"><svg class="ic"><use href="#i-folder"/></svg>Scegli cartella</button>
-          <button class="btn sec" id="btn-mods-locate" type="button"><svg class="ic"><use href="#i-cpu"/></svg>Trova dal gioco aperto</button>
-          <button class="btn" id="btn-mods-scan" type="button" disabled><svg class="ic"><use href="#i-shield"/></svg>Controlla la cartella</button></div>
+          <div><code id="mods-path">Cerco la cartella mods…</code><small id="mods-source">Se Minecraft è aperto la troviamo da soli.</small></div></div>
+        <div class="row"><button class="btn sec sm" id="btn-mods-choose" type="button"><svg class="ic"><use href="#i-folder"/></svg>Cambia cartella</button>
+          <button class="btn sec sm" id="btn-mods-scan" type="button" title="Rifà tutti i controlli" disabled><svg class="ic"><use href="#i-refresh"/></svg>Ricontrolla</button></div>
       </div>
       <div class="cands" id="mods-cands" hidden></div>
       <div class="prog"><span id="mods-pg"></span></div>
-      <div class="ph" id="mods-ph" style="margin:10px 22px 0">Pronta per la scansione</div>
-      <div id="mods-audit" style="margin-top:2px"></div>
+      <div class="phr"><div class="ph" id="mods-ph">Cerco la cartella mods…</div><button class="btn sec sm" id="btn-mods-stop" type="button" hidden>Interrompi</button></div>
       <div class="msum"><div><b id="ms0">–</b>mod totali</div><div><b id="ms1">–</b>ufficiali</div><div><b id="ms2">–</b>non riconosciute</div><div><b id="ms3">–</b>da controllare</div><div class="jr"><b id="ms4">–</b>toccate dopo l'avvio</div><div class="bar" id="mbar"><span class="g"></span><span class="m"></span><span class="c"></span></div></div>
-    </div>
-    <div class="card" style="margin-top:18px" aria-label="Mod aggiunte dopo l'avvio">
-      <div class="mfold">
-        <div class="path"><span class="pic"><svg class="ic" style="width:22px;height:22px"><use href="#i-shield"/></svg></span>
-          <div><code id="jrnl-game">Nessun controllo eseguito</code><small id="jrnl-note">Controlla se una mod è stata aggiunta o cambiata dopo l'avvio di Minecraft, guardando gli orari dei file. Parte da solo dopo il controllo della cartella; gli esiti compaiono anche nell'elenco delle mod.</small></div></div>
-        <div class="row"><label class="search" style="max-width:280px;cursor:pointer" title="Serve per vedere i file eliminati o rinominati: richiede privilegi di amministratore"><input type="checkbox" id="jrnl-usn" checked style="margin:0 8px 0 2px">Leggi anche il journal di Windows (serve admin)</label>
-          <button class="btn" id="btn-jrnl" type="button"><svg class="ic"><use href="#i-shield"/></svg>Controlla le date dei file</button></div>
-      </div>
-      <div class="ph" id="jrnl-ph" style="margin:10px 22px 0">Pronto — usa la cartella mods corrente o la rileva da javaw</div>
+      <div id="mods-audit"></div>
       <div id="jrnl-out"></div>
-    </div>
-    <div class="card" style="margin-top:18px" aria-label="Runtime del gioco">
-      <div class="mfold">
-        <div class="path"><span class="pic"><svg class="ic" style="width:22px;height:22px"><use href="#i-cpu"/></svg></span>
-          <div><code id="rt-game">Nessun controllo eseguito</code><small id="rt-note">Confronto runtime: riga di comando del processo di gioco (javaagent, tweakClass, classpath), mod caricate secondo logs/latest.log vs jar su disco (JiJ inclusi), artefatti noti di cheat client nella .minecraft e tracce JVM rimaste nei crash report/hs_err. Solo nomi e flag, mai contenuto dei file.</small></div></div>
-        <div class="row">
-          <button class="btn" id="btn-rt" type="button"><svg class="ic"><use href="#i-shield"/></svg>Controlla runtime</button></div>
-      </div>
-      <div class="ph" id="rt-ph" style="margin:10px 22px 0">Pronto — usa la cartella mods corrente o la rileva da javaw</div>
-      <div id="rt-out"></div>
-    </div>
-    <div class="card" style="margin-top:18px" aria-label="Controllo del gioco aperto">
-      <div class="mfold">
-        <div class="path"><span class="pic"><svg class="ic" style="width:22px;height:22px"><use href="#i-cpu"/></svg></span>
-          <div><code id="mem-path">Nessun gioco selezionato</code><small>Controlla il codice che Minecraft sta usando adesso, non solo i file nella cartella: serve a trovare cheat che si caricano di nascosto. Nulla viene eseguito. Le mod ufficiali vengono saltate.</small></div></div>
-        <div class="row"><label class="search" style="max-width:280px"><svg class="ic"><use href="#i-search"/></svg><select id="mem-pid" aria-label="Minecraft da controllare"><option value="auto">automatico — primo Minecraft trovato</option></select></label>
-          <button class="btn sec" id="btn-mem-auto" type="button"><svg class="ic"><use href="#i-cpu"/></svg>Cerca il gioco</button>
-          <button class="btn" id="btn-mem-scan" type="button"><svg class="ic"><use href="#i-shield"/></svg>Controlla il gioco aperto</button></div>
-        <div class="row" style="margin-top:8px"><label class="search" style="max-width:480px;cursor:pointer" title="All'apertura della sezione Mods partono da soli il controllo integrità e il dump memoria; le mod verificate non vengono dumpate. Riaprire la sezione non rifà il dump se è già pronto per questa sessione di gioco."><input type="checkbox" id="mem-auto" style="margin:0 8px 0 2px" checked>Controllo automatico all'apertura (date dei file + codice in uso)</label></div>
-      </div>
-      <ul class="steps" id="mem-steps" aria-live="polite"></ul>
-      <div class="log" id="mem-log" aria-hidden="true"></div>
-      <div class="prog"><span id="mem-pg"></span></div>
-      <div class="ph" id="mem-phase" style="margin:8px 22px 0"></div>
-      <div class="rep" id="mem-verdict-slot"></div>
-      <div class="rep" id="mem-pri-slot"></div>
-      <div class="rep" id="mem-rep"></div>
-      <div class="rep" id="mem-map-slot"></div>
-    </div>
-    <div class="card" style="margin-top:18px">
       <div class="mtool"><label class="search" style="max-width:320px"><svg class="ic"><use href="#i-search"/></svg><input id="mq" placeholder="Cerca una mod" aria-label="Cerca una mod"></label>
-        <button class="btn sec sm" id="btn-mods-deep" type="button" disabled><svg class="ic"><use href="#i-shield"/></svg><span>Controlla a fondo le non riconosciute</span></button>
-        <div class="filters" id="mfil"><button class="fl" data-f="all" aria-pressed="true">Tutte <span id="fa">0</span></button><button class="fl" data-f="ok" aria-pressed="false">Ufficiali <span id="fo">–</span></button><button class="fl" data-f="unk" aria-pressed="false">Non riconosciute <span id="fu">–</span></button><button class="fl" data-f="bad" aria-pressed="false">Da controllare <span id="fb">–</span></button><button class="fl jf" data-f="jr" aria-pressed="false">⚑ Dopo l'avvio <span id="fj">–</span></button></div></div>
-      <div id="mlist"><div class="mempty">Scegli una cartella per vedere l'elenco delle mod.</div></div>
+        <div class="filters" id="mfil"><button class="fl" data-f="all" aria-pressed="true">Tutte <span id="fa">0</span></button><button class="fl" data-f="ok" aria-pressed="false">Ufficiali <span id="fo">–</span></button><button class="fl" data-f="unk" aria-pressed="false">Non riconosciute <span id="fu">–</span></button><button class="fl" data-f="bad" aria-pressed="false">Da controllare <span id="fb">–</span></button><button class="fl jf" data-f="jr" aria-pressed="false">⚑ Dopo l'avvio <span id="fj">–</span></button><button class="fl jf" data-f="rt" aria-pressed="false" hidden>Dal gioco aperto <span id="fr">–</span></button></div></div>
+      <div id="mlist"><div class="mempty"><span class="sp"></span>Cerco la cartella mods…</div></div>
+      <details class="mem-box" id="mem-box" hidden>
+        <summary><span>Codice in uso nel gioco</span><small id="mem-sum">in corso…</small></summary>
+        <ul class="steps" id="mem-steps" aria-live="polite"></ul>
+        <div class="log" id="mem-log" aria-hidden="true"></div>
+        <div class="prog"><span id="mem-pg"></span></div>
+        <div class="ph" id="mem-phase" style="margin:8px 22px 0"></div>
+        <div class="rep" id="mem-verdict-slot"></div>
+        <div class="rep" id="mem-pri-slot"></div>
+        <div class="rep" id="mem-rep"></div>
+        <div class="rep" id="mem-map-slot"></div>
+      </details>
     </div>
   </section>
 </main>
